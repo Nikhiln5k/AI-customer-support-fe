@@ -1,0 +1,124 @@
+<app-page-header
+  [title]="isEdit() ? 'Edit customer' : 'New customer'"
+  [description]="
+    isEdit()
+      ? 'Update contact details and notes.'
+      : 'Add a customer so you can log tickets for them.'
+  "
+  [breadcrumbs]="breadcrumbs()"
+/>
+
+@if (customer.error()) {
+  <div class="card">
+    <app-error-state [error]="customer.error()" (retry)="customer.reload()" />
+  </div>
+} @else if (isEdit() && customer.isLoading()) {
+  <div class="card space-y-4 p-6" aria-busy="true" aria-label="Loading customer">
+    <div class="skeleton h-4 w-32"></div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="skeleton h-10"></div>
+      <div class="skeleton h-10"></div>
+      <div class="skeleton h-10"></div>
+      <div class="skeleton h-10"></div>
+    </div>
+    <div class="skeleton h-28"></div>
+  </div>
+} @else {
+  <form [formRoot]="customerForm" class="card" novalidate>
+    @if (saveError(); as error) {
+      <p
+        class="m-4 mb-0 rounded-control bg-danger-soft p-3 text-danger md:m-6 md:mb-0"
+        role="alert"
+      >
+        {{ error.message }}
+      </p>
+    }
+
+    <fieldset class="grid gap-5 p-4 md:grid-cols-2 md:p-6">
+      <legend class="sr-only">Customer details</legend>
+
+      <div>
+        <label for="name" class="field-label">
+          Name <span class="text-danger" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="name"
+          class="input"
+          autocomplete="off"
+          [formField]="customerForm.name"
+          [attr.aria-invalid]="customerForm.name().touched() && customerForm.name().invalid()"
+          aria-describedby="name-error"
+        />
+        <app-field-error id="name-error" [field]="customerForm.name" />
+      </div>
+
+      <div>
+        <label for="email" class="field-label">
+          Email <span class="text-danger" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="email"
+          type="email"
+          class="input"
+          autocomplete="off"
+          [formField]="customerForm.email"
+          [attr.aria-invalid]="customerForm.email().touched() && customerForm.email().invalid()"
+          aria-describedby="email-error"
+        />
+        <app-field-error id="email-error" [field]="customerForm.email" />
+      </div>
+
+      <div>
+        <label for="phone" class="field-label">Phone</label>
+        <input
+          id="phone"
+          type="tel"
+          class="input"
+          autocomplete="off"
+          [formField]="customerForm.phone"
+          aria-describedby="phone-hint"
+        />
+        <p id="phone-hint" class="field-hint">Include the country code, e.g. +1 415 555 0132.</p>
+      </div>
+
+      <div>
+        <label for="company" class="field-label">Company</label>
+        <input id="company" class="input" autocomplete="off" [formField]="customerForm.company" />
+      </div>
+
+      <div class="md:col-span-2">
+        <label for="notes" class="field-label">Notes</label>
+        <textarea
+          id="notes"
+          rows="5"
+          class="input resize-y"
+          [formField]="customerForm.notes"
+          [attr.aria-invalid]="customerForm.notes().touched() && customerForm.notes().invalid()"
+          aria-describedby="notes-hint notes-error"
+        ></textarea>
+        <p id="notes-hint" class="field-hint">Internal only. Customers never see these notes.</p>
+        <app-field-error id="notes-error" [field]="customerForm.notes" />
+      </div>
+    </fieldset>
+
+    <div class="sticky-actions">
+      <a
+        [routerLink]="isEdit() ? ['/customers', id()] : '/customers'"
+        class="btn-secondary max-md:flex-1"
+      >
+        Cancel
+      </a>
+      <button
+        type="submit"
+        class="btn-primary max-md:flex-1"
+        [disabled]="customerForm().submitting()"
+      >
+        @if (customerForm().submitting()) {
+          {{ isEdit() ? 'Saving…' : 'Creating…' }}
+        } @else {
+          {{ isEdit() ? 'Save changes' : 'Create customer' }}
+        }
+      </button>
+    </div>
+  </form>
+}

@@ -1,0 +1,191 @@
+@if (ticket.error()) {
+  <app-page-header
+    title="Ticket"
+    [breadcrumbs]="[{ label: 'Tickets', link: '/tickets' }, { label: 'Ticket' }]"
+  />
+  <div class="card">
+    <app-error-state [error]="ticket.error()" (retry)="ticket.reload()" />
+  </div>
+} @else if (ticket.value(); as t) {
+  <app-page-header
+    [title]="t.subject"
+    [breadcrumbs]="[{ label: 'Tickets', link: '/tickets' }, { label: '#' + t.number }]"
+  >
+    <app-connection-status class="max-sm:hidden" />
+    <button type="button" class="btn-secondary lg:hidden" (click)="detailsOpen.set(true)">
+      <app-icon name="info" [size]="16" />
+      Details & AI
+    </button>
+    @if (canEdit) {
+      <a [routerLink]="['/tickets', t.id, 'edit']" class="btn-secondary">
+        <app-icon name="edit" [size]="16" />
+        Edit
+      </a>
+    }
+  </app-page-header>
+
+  <div class="-mt-3 mb-5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+    <app-badge [tone]="statusLabels[t.status].tone" [dot]="true">{{
+      statusLabels[t.status].label
+    }}</app-badge>
+    <app-badge [tone]="priorityLabels[t.priority].tone"
+      >{{ priorityLabels[t.priority].label }} priority</app-badge
+    >
+    <span>Opened {{ t.createdAt | relativeTime }} by {{ t.customer.name }}</span>
+  </div>
+
+  <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <!-- Conversation -->
+    <section class="card flex flex-col overflow-hidden" aria-labelledby="conversation-title">
+      <header class="flex items-center justify-between border-b border-line px-4 py-3">
+        <h2 id="conversation-title" class="text-base">Conversation</h2>
+        <span class="flex items-center gap-1.5 text-xs text-ink-muted">
+          <span
+            class="size-2 rounded-full"
+            [class]="conversation.customerOnline() ? 'bg-brand' : 'bg-line-strong'"
+            aria-hidden="true"
+          ></span>
+          {{ t.customer.name.split(' ')[0] }} is
+          {{ conversation.customerOnline() ? 'online' : 'offline' }}
+        </span>
+      </header>
+
+      @if (conversation.loading()) {
+        <app-skeleton-rows [rows]="3" />
+      } @else if (conversation.error()) {
+        <app-error-state [error]="conversation.error()" (retry)="conversation.load(t.id)" />
+      } @else {
+        <app-message-thread
+          class="max-h-[60dvh] min-h-64 p-4"
+          [messages]="conversation.messages()"
+          [typing]="conversation.typing()"
+          (retry)="conversation.retry($event)"
+        />
+      }
+
+      <div class="sticky bottom-16 border-t border-line bg-surface p-3 md:static">
+        @if (canEdit) {
+          <app-reply-composer
+            [(draft)]="draft"
+            [(kind)]="composerKind"
+            [disabled]="conversation.loading()"
+            (send)="send($event)"
+          />
+        } @else {
+          <p class="text-center text-ink-muted">You have view-only access to this ticket.</p>
+        }
+      </div>
+    </section>
+
+    <!-- Sidebar (desktop) -->
+    <aside class="hidden space-y-4 lg:block" aria-label="Ticket details">
+      <ng-container *ngTemplateOutlet="sidebar" />
+    </aside>
+  </div>
+
+  <!-- Sidebar (mobile) -->
+  <app-drawer title="Details & AI" [(open)]="detailsOpen">
+    <div class="space-y-4 bg-canvas p-4">
+      <ng-container *ngTemplateOutlet="sidebar" />
+    </div>
+  </app-drawer>
+
+  <ng-template #sidebar>
+    <section class="card p-4" aria-labelledby="details-title">
+      <h2 id="details-title" class="mb-3 text-sm">Details</h2>
+      <div class="space-y-3">
+        <label class="block">
+          <span class="field-label text-xs text-ink-muted">Status</span>
+          <select
+            class="input"
+            [value]="t.status"
+            [disabled]="!canEdit"
+            (change)="changeStatus($event)"
+          >
+            @for (option of statusOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="block">
+          <span class="field-label text-xs text-ink-muted">Priority</span>
+          <select
+            class="input"
+            [value]="t.priority"
+            [disabled]="!canEdit"
+            (change)="changePriority($event)"
+          >
+            @for (option of priorityOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="block">
+          <span class="field-label text-xs text-ink-muted">Assignee</span>
+          <select
+            class="input"
+            [value]="t.assignee?.id ?? ''"
+            [disabled]="!canEdit"
+            (change)="changeAssignee($event)"
+          >
+            <option value="">Unassigned</option>
+            @for (agent of agents.value(); track agent.id) {
+              <option [value]="agent.id">{{ agent.name }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <dl class="mt-4 space-y-2 border-t border-line pt-4 text-sm">
+        <div class="flex justify-between gap-2">
+          <dt class="text-ink-muted">SLA due</dt>
+          <dd>{{ t.slaDueAt ? (t.slaDueAt | relativeTime) : 'Met' }}</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-ink-muted">Created</dt>
+          <dd>{{ t.createdAt | date: 'MMM d, y, HH:mm' }}</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-ink-muted">Updated</dt>
+          <dd>{{ t.updatedAt | relativeTime }}</dd>
+        </div>
+        @if (t.tags.length) {
+          <div>
+            <dt class="mb-1.5 text-ink-muted">Tags</dt>
+            <dd class="flex flex-wrap gap-1">
+              @for (tag of t.tags; track tag) {
+                <app-badge>{{ tag }}</app-badge>
+              }
+            </dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <section class="card p-4" aria-labelledby="customer-title">
+      <h2 id="customer-title" class="mb-3 text-sm">Customer</h2>
+      <div class="flex items-center gap-3">
+        <app-avatar [name]="t.customer.name" [size]="40" />
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ t.customer.name }}</p>
+          <p class="truncate text-xs text-ink-muted">{{ t.customer.email }}</p>
+        </div>
+      </div>
+      <a [routerLink]="['/customers', t.customer.id]" class="btn-secondary mt-3 w-full"
+        >View profile</a
+      >
+    </section>
+
+    @if (canEdit) {
+      <section class="card p-4">
+        <app-ticket-ai-panel [ticketId]="t.id" (useReply)="useAiReply($event)" />
+      </section>
+    }
+  </ng-template>
+} @else {
+  <div class="mb-6 space-y-2" aria-busy="true" aria-label="Loading ticket">
+    <div class="skeleton h-3 w-32"></div>
+    <div class="skeleton h-7 w-2/3"></div>
+  </div>
+  <div class="card"><app-skeleton-rows [rows]="4" /></div>
+}

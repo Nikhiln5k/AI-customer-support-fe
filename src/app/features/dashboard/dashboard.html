@@ -1,0 +1,220 @@
+<app-page-header
+  [title]="'Good to see you, ' + firstName()"
+  description="Here’s what’s happening across your support queue."
+>
+  <div
+    class="flex rounded-control border border-line-strong bg-surface p-0.5"
+    role="group"
+    aria-label="Date range"
+  >
+    @for (option of ranges; track option.value) {
+      <button
+        type="button"
+        class="min-h-9 rounded-[calc(var(--radius-control)-2px)] px-3 text-sm font-medium transition-colors"
+        [class]="range() === option.value ? 'bg-subtle text-ink' : 'text-ink-muted hover:text-ink'"
+        [attr.aria-pressed]="range() === option.value"
+        (click)="range.set(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+</app-page-header>
+
+@if (summary.error()) {
+  <div class="card">
+    <app-error-state [error]="summary.error()" (retry)="summary.reload()" />
+  </div>
+} @else {
+  @let data = summary.value();
+  @let loading = summary.isLoading();
+
+  <!-- KPIs -->
+  <section aria-label="Key metrics" class="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-5">
+    <app-stat-card
+      label="Open tickets"
+      icon="ticket"
+      [loading]="loading"
+      [value]="data?.openTickets ?? ''"
+    />
+    <app-stat-card
+      label="Overdue"
+      icon="clock"
+      [loading]="loading"
+      [value]="data?.overdueTickets ?? ''"
+      [hint]="data?.overdueTickets ? 'Needs attention' : 'All within SLA'"
+      [warn]="!!data?.overdueTickets"
+    />
+    <app-stat-card
+      label="SLA health"
+      icon="success"
+      [loading]="loading"
+      [value]="(data?.slaHealth ?? '') + '%'"
+      hint="Met within target"
+    />
+    <app-stat-card
+      label="Avg. first response"
+      icon="activity"
+      [loading]="loading"
+      [value]="(data?.avgResponseMinutes ?? '') + ' min'"
+    />
+    <app-stat-card
+      class="col-span-2 lg:col-span-1"
+      label="AI-assisted resolution"
+      icon="sparkles"
+      [loading]="loading"
+      [value]="(data?.aiResolutionRate ?? '') + '%'"
+      hint="Resolved with AI suggestions"
+    />
+  </section>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-3">
+    <!-- Ticket trend -->
+    <section class="card p-4 lg:col-span-2" aria-labelledby="trend-title">
+      <h2 id="trend-title" class="mb-4 text-base">Ticket trend</h2>
+      @if (data) {
+        <app-line-chart
+          [series]="trendSeries()"
+          [labels]="trendLabels()"
+          caption="Tickets created and resolved per day"
+        />
+      } @else {
+        <div class="skeleton h-56"></div>
+      }
+    </section>
+
+    <!-- SLA status -->
+    <section class="card p-4" aria-labelledby="sla-title">
+      <h2 id="sla-title" class="mb-4 text-base">SLA status</h2>
+      @if (data) {
+        <div class="flex h-3 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+          @for (segment of slaSegments(); track segment.label) {
+            <div [class]="segment.color" [style.width.%]="segment.percent"></div>
+          }
+        </div>
+        <ul class="mt-4 space-y-3">
+          @for (segment of slaSegments(); track segment.label) {
+            <li class="flex items-center justify-between">
+              <span class="flex items-center gap-2 text-ink-muted">
+                <span class="size-2.5 rounded-sm" [class]="segment.color"></span>
+                {{ segment.label }}
+              </span>
+              <span class="font-medium">
+                {{ segment.value }}
+                <span class="ml-1 text-xs font-normal text-ink-faint">{{ segment.percent }}%</span>
+              </span>
+            </li>
+          }
+        </ul>
+
+        <h3 class="mt-6 mb-3 text-sm">Agent workload</h3>
+        <ul class="space-y-3">
+          @for (agent of data.workload; track agent.agent) {
+            <li>
+              <div class="mb-1 flex justify-between text-xs">
+                <span class="text-ink">{{ agent.agent }}</span>
+                <span class="text-ink-muted">{{ agent.open }} / {{ agent.capacity }}</span>
+              </div>
+              <div
+                class="h-1.5 overflow-hidden rounded-full bg-subtle"
+                role="meter"
+                [attr.aria-label]="agent.agent + ' workload'"
+                aria-valuemin="0"
+                [attr.aria-valuemax]="agent.capacity"
+                [attr.aria-valuenow]="agent.open"
+              >
+                <div
+                  class="h-full rounded-full"
+                  [class]="agent.open / agent.capacity > 0.85 ? 'bg-warn' : 'bg-brand'"
+                  [style.width.%]="(agent.open / agent.capacity) * 100"
+                ></div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="skeleton h-3"></div>
+        <div class="mt-4 space-y-3">
+          <div class="skeleton h-4"></div>
+          <div class="skeleton h-4"></div>
+          <div class="skeleton h-4"></div>
+        </div>
+      }
+    </section>
+  </div>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-3">
+    <!-- Recent tickets -->
+    <section class="card overflow-hidden lg:col-span-2" aria-labelledby="recent-title">
+      <div class="flex items-center justify-between border-b border-line px-4 py-3">
+        <h2 id="recent-title" class="text-base">Recent tickets</h2>
+        <a routerLink="/tickets" class="link text-sm">View all</a>
+      </div>
+      @if (recentTickets.isLoading()) {
+        <app-skeleton-rows [rows]="5" />
+      } @else if (recentTickets.error()) {
+        <app-error-state [error]="recentTickets.error()" (retry)="recentTickets.reload()" />
+      } @else if (!recentTickets.value()?.items?.length) {
+        <app-empty-state
+          icon="ticket"
+          title="No tickets yet"
+          message="New customer requests will show up here."
+        />
+      } @else {
+        <ul class="divide-y divide-line">
+          @for (ticket of recentTickets.value()!.items; track ticket.id) {
+            <li>
+              <a
+                [routerLink]="['/tickets', ticket.id]"
+                class="flex items-center gap-3 px-4 py-3 hover:bg-canvas"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="truncate font-medium">{{ ticket.subject }}</p>
+                  <p class="truncate text-xs text-ink-muted">
+                    #{{ ticket.number }} · {{ ticket.customer.name }} ·
+                    {{ ticket.updatedAt | relativeTime }}
+                  </p>
+                </div>
+                <app-badge
+                  class="hidden sm:inline-flex"
+                  [tone]="priorityLabels[ticket.priority].tone"
+                >
+                  {{ priorityLabels[ticket.priority].label }}
+                </app-badge>
+                <app-badge [tone]="statusLabels[ticket.status].tone" [dot]="true">
+                  {{ statusLabels[ticket.status].label }}
+                </app-badge>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- Recent activity -->
+    <section class="card overflow-hidden" aria-labelledby="activity-title">
+      <h2 id="activity-title" class="border-b border-line px-4 py-3 text-base">Recent activity</h2>
+      @if (!data) {
+        <app-skeleton-rows [rows]="5" />
+      } @else if (!data.activity.length) {
+        <app-empty-state icon="activity" title="No activity yet" />
+      } @else {
+        <ol class="space-y-4 p-4">
+          @for (item of data.activity; track item.id) {
+            <li class="relative pl-5">
+              <span
+                class="absolute top-1.5 left-0 size-2 rounded-full bg-line-strong"
+                aria-hidden="true"
+              ></span>
+              <p>
+                <span class="font-medium">{{ item.actor }}</span>
+                <span class="text-ink-muted"> {{ item.description }}</span>
+              </p>
+              <p class="mt-0.5 text-xs text-ink-faint">{{ item.createdAt | relativeTime }}</p>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+  </div>
+}

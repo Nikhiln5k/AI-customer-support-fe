@@ -1,0 +1,225 @@
+<app-page-header title="Customers" description="Everyone who has contacted your support team.">
+  @if (canEdit) {
+    <a routerLink="new" class="btn-primary max-md:hidden">
+      <app-icon name="plus" [size]="16" />
+      New customer
+    </a>
+  }
+</app-page-header>
+
+<section class="card overflow-hidden">
+  <!-- Toolbar -->
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <app-search-input
+        class="min-w-0 flex-1 md:max-w-xs"
+        label="Search by name, email or company"
+        [(value)]="list.search"
+      />
+
+      <label class="hidden w-48 md:block">
+        <span class="sr-only">Company</span>
+        <select class="input" [value]="list.filters().company" (change)="setCompany($event)">
+          <option value="">All companies</option>
+          @for (company of companies.value(); track company) {
+            <option [value]="company">{{ company }}</option>
+          }
+        </select>
+      </label>
+
+      <button type="button" class="btn-secondary md:hidden" (click)="filtersOpen.set(true)">
+        <app-icon name="filter" [size]="16" />
+        Filters
+        @if (list.activeFilterCount()) {
+          <span class="rounded bg-brand px-1.5 text-xs text-white">{{
+            list.activeFilterCount()
+          }}</span>
+        }
+      </button>
+    </div>
+
+    <app-filter-chips
+      [chips]="list.chips()"
+      (remove)="list.clearFilter($event)"
+      (clear)="list.clearAll()"
+    />
+  </div>
+
+  <!-- Results -->
+  @if (customers.isLoading() && !customers.hasValue()) {
+    <app-skeleton-rows [rows]="8" />
+  } @else if (customers.error()) {
+    <app-error-state [error]="customers.error()" (retry)="customers.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="users"
+      title="No customers found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'Customers are added automatically when they contact you, or you can add one now.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      } @else if (canEdit) {
+        <a routerLink="new" class="btn-primary">
+          <app-icon name="plus" [size]="16" /> New customer
+        </a>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="customers.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            <th [attr.aria-sort]="list.sortState('name')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('name')"
+              >
+                Name <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th>Email</th>
+            <th class="hidden lg:table-cell">Phone</th>
+            <th>Open tickets</th>
+            <th [attr.aria-sort]="list.sortState('lastInteractionAt')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('lastInteractionAt')"
+              >
+                Last interaction <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th class="w-14"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (customer of rows(); track customer.id) {
+            <tr>
+              <td class="max-w-72">
+                <div class="flex items-center gap-3">
+                  <app-avatar [name]="customer.name" />
+                  <div class="min-w-0">
+                    <a
+                      [routerLink]="customer.id"
+                      class="block truncate font-medium hover:text-brand-ink"
+                    >
+                      {{ customer.name }}
+                    </a>
+                    @if (customer.company) {
+                      <span class="block truncate text-xs text-ink-muted">{{
+                        customer.company
+                      }}</span>
+                    }
+                  </div>
+                </div>
+              </td>
+              <td class="max-w-60 truncate text-ink-muted">{{ customer.email }}</td>
+              <td class="hidden whitespace-nowrap text-ink-muted lg:table-cell">
+                {{ customer.phone || '—' }}
+              </td>
+              <td>
+                @if (customer.openTickets) {
+                  <app-badge tone="info">{{ customer.openTickets }} open</app-badge>
+                } @else {
+                  <span class="text-ink-muted">None</span>
+                }
+              </td>
+              <td class="whitespace-nowrap text-ink-muted">
+                {{ customer.lastInteractionAt | relativeTime }}
+              </td>
+              <td>
+                <div class="flex justify-end">
+                  <app-menu [label]="'Actions for ' + customer.name">
+                    <a [routerLink]="customer.id" class="menu-item">
+                      <app-icon name="eye" [size]="16" /> View
+                    </a>
+                    @if (canEdit) {
+                      <a [routerLink]="[customer.id, 'edit']" class="menu-item">
+                        <app-icon name="edit" [size]="16" /> Edit
+                      </a>
+                    }
+                  </app-menu>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (customer of rows(); track customer.id) {
+          <li>
+            <a
+              [routerLink]="customer.id"
+              class="flex items-start gap-3 px-4 py-3.5 active:bg-subtle"
+            >
+              <app-avatar [name]="customer.name" [size]="36" />
+              <div class="min-w-0 flex-1 space-y-1">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate font-medium">{{ customer.name }}</p>
+                  <span class="shrink-0 text-xs text-ink-muted">
+                    {{ customer.lastInteractionAt | relativeTime }}
+                  </span>
+                </div>
+                <p class="truncate text-ink-muted">{{ customer.email }}</p>
+                <div class="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                  @if (customer.company) {
+                    <span>{{ customer.company }}</span>
+                  }
+                  @if (customer.openTickets) {
+                    <app-badge tone="info">{{ customer.openTickets }} open</app-badge>
+                  }
+                </div>
+              </div>
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>
+
+<!-- Mobile: filters drawer + sticky create action -->
+<app-drawer title="Filters" [(open)]="filtersOpen">
+  <div class="space-y-4 p-4">
+    <div>
+      <label for="company-filter" class="field-label">Company</label>
+      <select
+        id="company-filter"
+        class="input"
+        [value]="list.filters().company"
+        (change)="setCompany($event)"
+      >
+        <option value="">All companies</option>
+        @for (company of companies.value(); track company) {
+          <option [value]="company">{{ company }}</option>
+        }
+      </select>
+    </div>
+  </div>
+  <div drawer-footer class="flex gap-2 border-t border-line p-4">
+    <button type="button" class="btn-secondary flex-1" (click)="list.clearAll()">Clear</button>
+    <button type="button" class="btn-primary flex-1" (click)="filtersOpen.set(false)">
+      Show {{ total() }} results
+    </button>
+  </div>
+</app-drawer>
+
+@if (canEdit) {
+  <a
+    routerLink="new"
+    class="btn-primary fixed right-4 bottom-20 z-20 size-14 rounded-full p-0 shadow-lg md:hidden"
+    aria-label="New customer"
+  >
+    <app-icon name="plus" [size]="22" />
+  </a>
+}

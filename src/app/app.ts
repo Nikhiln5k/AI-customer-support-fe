@@ -1,12 +1,15 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { ConfirmDialog } from './shared/components/confirm-dialog';
+import { ToastHost } from './shared/components/toast-host';
 
 @Component({
-  imports: [RouterOutlet],
   selector: 'app-root',
-  styleUrl: './app.css',
-  templateUrl: './app.html',
+  imports: [RouterOutlet, ToastHost, ConfirmDialog],
+  template: `
+    <router-outlet />
+    <app-toast-host />
+    <app-confirm-dialog />
+  `,
 })
-export class App {
-  protected readonly title = signal('AI-customer-support');
-}
+export class App {}

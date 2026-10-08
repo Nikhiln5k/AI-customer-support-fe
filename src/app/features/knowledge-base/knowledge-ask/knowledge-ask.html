@@ -1,0 +1,128 @@
+<app-page-header
+  title="Ask AI"
+  description="Ask a support question and get an answer drawn from published knowledge base articles."
+  [breadcrumbs]="[{ label: 'Knowledge Base', link: '/knowledge-base' }, { label: 'Ask AI' }]"
+/>
+
+<div class="mx-auto max-w-3xl space-y-4">
+  <form [formRoot]="questionForm" class="card p-4 md:p-6" novalidate>
+    <label for="question" class="field-label">Your question</label>
+    <textarea
+      id="question"
+      rows="3"
+      class="input resize-y"
+      placeholder="e.g. How does a customer export their invoices?"
+      [formField]="questionForm.question"
+      [attr.aria-invalid]="questionForm.question().touched() && questionForm.question().invalid()"
+      aria-describedby="question-error"
+    ></textarea>
+    <app-field-error id="question-error" [field]="questionForm.question" />
+
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <p class="text-xs text-ink-faint">Only published articles are searched.</p>
+      <button type="submit" class="btn-primary max-sm:w-full" [disabled]="answer.isLoading()">
+        <app-icon name="sparkles" [size]="16" />
+        {{ answer.isLoading() ? 'Searching…' : 'Ask AI' }}
+      </button>
+    </div>
+  </form>
+
+  <section aria-live="polite" [attr.aria-busy]="answer.isLoading()" aria-label="Answer">
+    @if (answer.isLoading()) {
+      <div class="card space-y-3 p-4 md:p-6">
+        <span class="sr-only">Searching the knowledge base…</span>
+        <div class="skeleton h-4 w-40"></div>
+        <div class="skeleton h-4 w-full"></div>
+        <div class="skeleton h-4 w-11/12"></div>
+        <div class="skeleton h-4 w-2/3"></div>
+      </div>
+    } @else if (answer.error()) {
+      <div class="card">
+        <app-error-state [error]="answer.error()" (retry)="answer.reload()" />
+      </div>
+    } @else if (result(); as result) {
+      <div class="space-y-4">
+        <article class="card border-brand/30 p-4 md:p-6" aria-labelledby="answer-heading">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="answer-heading" class="flex items-center gap-2 text-base">
+              <span
+                class="flex size-7 items-center justify-center rounded-full bg-brand-soft text-brand-ink"
+              >
+                <app-icon name="sparkles" [size]="16" />
+              </span>
+              AI-generated answer
+            </h2>
+            <span class="badge bg-brand-soft text-brand-ink">AI-generated</span>
+          </div>
+          <p class="mt-1 text-xs text-ink-muted">For: “{{ asked() }}”</p>
+          <p class="mt-4 leading-relaxed whitespace-pre-line">{{ result.answer }}</p>
+          <p class="mt-4 flex gap-2 rounded-control bg-subtle p-3 text-xs text-ink-muted">
+            <app-icon name="info" [size]="16" />
+            AI answers can be incomplete or wrong. Check the sources below before sharing with a
+            customer.
+          </p>
+        </article>
+
+        <section class="card" aria-labelledby="sources-heading">
+          <h2 id="sources-heading" class="border-b border-line px-4 py-3 text-base md:px-6">
+            Sources ({{ result.sources.length }})
+          </h2>
+          @if (result.sources.length) {
+            <ol class="divide-y divide-line">
+              @for (source of result.sources; track source.articleId) {
+                <li class="space-y-2 px-4 py-4 md:px-6">
+                  <div class="flex flex-wrap items-start justify-between gap-2">
+                    <a
+                      [routerLink]="['/knowledge-base', source.articleId]"
+                      class="link flex items-center gap-1.5"
+                    >
+                      <app-icon name="book" [size]="16" />
+                      {{ source.title }}
+                    </a>
+                    <span class="flex items-center gap-2 text-xs text-ink-muted">
+                      <span
+                        class="h-1.5 w-16 overflow-hidden rounded-full bg-subtle"
+                        aria-hidden="true"
+                      >
+                        <span
+                          class="block h-full rounded-full bg-brand"
+                          [style.width.%]="source.score * 100"
+                        ></span>
+                      </span>
+                      {{ source.score | percent }} relevance
+                    </span>
+                  </div>
+                  <blockquote class="border-l-2 border-line-strong pl-3 text-ink-muted">
+                    {{ source.snippet }}
+                  </blockquote>
+                </li>
+              }
+            </ol>
+          } @else {
+            <p class="px-4 py-6 text-ink-muted md:px-6">
+              No matching articles were found. Try rephrasing the question.
+            </p>
+          }
+        </section>
+      </div>
+    } @else {
+      <div class="card p-4 md:p-6">
+        <h2 class="text-base">Try asking</h2>
+        <ul class="mt-3 space-y-2">
+          @for (suggestion of suggestions; track suggestion) {
+            <li>
+              <button
+                type="button"
+                class="btn-secondary h-auto w-full justify-start py-2 text-left whitespace-normal"
+                (click)="useSuggestion(suggestion)"
+              >
+                <app-icon name="search" [size]="16" />
+                {{ suggestion }}
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </section>
+</div>

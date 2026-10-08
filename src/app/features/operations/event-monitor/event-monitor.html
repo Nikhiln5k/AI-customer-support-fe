@@ -1,0 +1,136 @@
+<section class="card overflow-hidden" aria-labelledby="events-heading">
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="events-heading" class="text-base">RabbitMQ events</h2>
+      <div class="flex items-center gap-3">
+        <label class="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-ink-muted">
+          <input
+            type="checkbox"
+            class="checkbox"
+            [checked]="autoRefresh()"
+            (change)="toggleAutoRefresh($event)"
+          />
+          Auto-refresh (10s)
+        </label>
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="events.isLoading()"
+          (click)="events.reload()"
+        >
+          <app-icon name="refresh" [size]="16" />
+          {{ events.isLoading() ? 'Refreshing…' : 'Refresh' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <app-search-input
+        class="min-w-0 flex-1 md:max-w-xs"
+        label="Search by event, exchange, queue or consumer"
+        [(value)]="list.search"
+      />
+      <label class="block w-full sm:w-44">
+        <span class="sr-only">Status</span>
+        <select class="input" [value]="list.filters().status" (change)="setStatus($event)">
+          <option value="">All statuses</option>
+          @for (option of statusOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+    </div>
+  </div>
+
+  @if (events.isLoading() && !events.hasValue()) {
+    <app-skeleton-rows [rows]="8" />
+  } @else if (events.error()) {
+    <app-error-state [error]="events.error()" (retry)="events.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="activity"
+      title="No events found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'Broker events will appear here as they are published.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="events.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            <th>Event type</th>
+            <th>Exchange</th>
+            <th class="hidden lg:table-cell">Queue</th>
+            <th>Consumer</th>
+            <th>Status</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (event of rows(); track event.id) {
+            <tr>
+              <td class="font-mono text-xs">{{ event.type }}</td>
+              <td class="font-mono text-xs text-ink-muted">
+                {{ event.exchange }}
+                <span class="block lg:hidden">{{ event.queue }}</span>
+              </td>
+              <td class="hidden font-mono text-xs text-ink-muted lg:table-cell">
+                {{ event.queue }}
+              </td>
+              <td class="text-ink-muted">{{ event.consumer }}</td>
+              <td>
+                <app-badge [tone]="statusLabels[event.status].tone" [dot]="true">
+                  {{ statusLabels[event.status].label }}
+                </app-badge>
+              </td>
+              <td class="whitespace-nowrap text-ink-muted">
+                <time
+                  [attr.datetime]="event.timestamp"
+                  [attr.title]="event.timestamp | date: 'medium'"
+                >
+                  {{ event.timestamp | relativeTime }}
+                </time>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (event of rows(); track event.id) {
+          <li class="space-y-2 px-4 py-3.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-sm font-medium">{{ event.type }}</span>
+              <app-badge [tone]="statusLabels[event.status].tone" [dot]="true">
+                {{ statusLabels[event.status].label }}
+              </app-badge>
+            </div>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+              <dt class="text-ink-muted">Exchange</dt>
+              <dd class="truncate font-mono">{{ event.exchange }}</dd>
+              <dt class="text-ink-muted">Queue</dt>
+              <dd class="truncate font-mono">{{ event.queue }}</dd>
+              <dt class="text-ink-muted">Consumer</dt>
+              <dd class="truncate">{{ event.consumer }}</dd>
+              <dt class="text-ink-muted">Time</dt>
+              <dd>
+                <time [attr.datetime]="event.timestamp">{{ event.timestamp | relativeTime }}</time>
+              </dd>
+            </dl>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>

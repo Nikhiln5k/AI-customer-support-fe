@@ -1,0 +1,194 @@
+<app-page-header
+  title="Knowledge Base"
+  description="Help articles that agents share with customers and AI uses to answer questions."
+>
+  <a routerLink="ask" [queryParams]="askParams()" class="btn-secondary">
+    <app-icon name="sparkles" [size]="16" />
+    Ask AI
+  </a>
+  @if (canEdit) {
+    <a routerLink="new" class="btn-primary max-md:hidden">
+      <app-icon name="plus" [size]="16" />
+      New article
+    </a>
+  }
+</app-page-header>
+
+<section class="card overflow-hidden">
+  <!-- Toolbar -->
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <app-search-input
+        class="min-w-0 flex-1 md:max-w-xs"
+        label="Search by title, content or tag"
+        [(value)]="list.search"
+      />
+
+      <div class="hidden flex-wrap items-center gap-2 lg:flex">
+        <app-article-filters [list]="list" [categories]="categoryList()" />
+      </div>
+
+      <button type="button" class="btn-secondary lg:hidden" (click)="filtersOpen.set(true)">
+        <app-icon name="filter" [size]="16" />
+        Filters
+        @if (list.activeFilterCount()) {
+          <span class="rounded bg-brand px-1.5 text-xs text-white">{{
+            list.activeFilterCount()
+          }}</span>
+        }
+      </button>
+    </div>
+
+    <app-filter-chips
+      [chips]="list.chips()"
+      (remove)="list.clearFilter($event)"
+      (clear)="list.clearAll()"
+    />
+  </div>
+
+  <!-- Results -->
+  @if (articles.isLoading() && !articles.hasValue()) {
+    <app-skeleton-rows [rows]="8" />
+  } @else if (articles.error()) {
+    <app-error-state [error]="articles.error()" (retry)="articles.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="book"
+      title="No articles found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'Write your first article to help customers and the AI assistant.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      } @else if (canEdit) {
+        <a routerLink="new" class="btn-primary">
+          <app-icon name="plus" [size]="16" />
+          New article
+        </a>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="articles.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            <th [attr.aria-sort]="list.sortState('title')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('title')"
+              >
+                Title <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th>Category</th>
+            <th>Status</th>
+            <th class="hidden lg:table-cell">Author</th>
+            <th [attr.aria-sort]="list.sortState('updatedAt')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('updatedAt')"
+              >
+                Updated <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            @if (canEdit) {
+              <th class="w-16"><span class="sr-only">Actions</span></th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (article of rows(); track article.id) {
+            <tr class="group">
+              <td class="max-w-96">
+                <a
+                  [routerLink]="article.id"
+                  class="block truncate font-medium hover:text-brand-ink"
+                >
+                  {{ article.title }}
+                </a>
+                <span class="text-xs text-ink-muted lg:hidden">{{ article.author }}</span>
+              </td>
+              <td class="text-ink-muted">{{ article.category }}</td>
+              <td>
+                <app-badge [tone]="statusLabels[article.status].tone" [dot]="true">
+                  {{ statusLabels[article.status].label }}
+                </app-badge>
+              </td>
+              <td class="hidden text-ink-muted lg:table-cell">{{ article.author }}</td>
+              <td class="whitespace-nowrap text-ink-muted">
+                {{ article.updatedAt | relativeTime }}
+              </td>
+              @if (canEdit) {
+                <td>
+                  <div
+                    class="flex justify-end opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                  >
+                    <a
+                      [routerLink]="[article.id, 'edit']"
+                      class="btn-icon"
+                      [attr.aria-label]="'Edit ' + article.title"
+                    >
+                      <app-icon name="edit" [size]="16" />
+                    </a>
+                  </div>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (article of rows(); track article.id) {
+          <li>
+            <a [routerLink]="article.id" class="block space-y-2 px-4 py-3.5 active:bg-subtle">
+              <div class="flex items-center justify-between gap-2 text-xs text-ink-muted">
+                <span>{{ article.category }}</span>
+                <span>{{ article.updatedAt | relativeTime }}</span>
+              </div>
+              <p class="font-medium">{{ article.title }}</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <app-badge [tone]="statusLabels[article.status].tone" [dot]="true">
+                  {{ statusLabels[article.status].label }}
+                </app-badge>
+                <span class="text-ink-muted">{{ article.author }}</span>
+              </div>
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>
+
+<!-- Mobile: filters drawer + sticky create action -->
+<app-drawer title="Filters" [(open)]="filtersOpen">
+  <div class="space-y-4 p-4">
+    <app-article-filters [list]="list" [categories]="categoryList()" [stacked]="true" />
+  </div>
+  <div drawer-footer class="flex gap-2 border-t border-line p-4">
+    <button type="button" class="btn-secondary flex-1" (click)="list.clearAll()">Clear</button>
+    <button type="button" class="btn-primary flex-1" (click)="filtersOpen.set(false)">
+      Show {{ total() }} results
+    </button>
+  </div>
+</app-drawer>
+
+@if (canEdit) {
+  <a
+    routerLink="new"
+    class="btn-primary fixed right-4 bottom-20 z-20 size-14 rounded-full p-0 shadow-lg md:hidden"
+    aria-label="New article"
+  >
+    <app-icon name="plus" [size]="22" />
+  </a>
+}

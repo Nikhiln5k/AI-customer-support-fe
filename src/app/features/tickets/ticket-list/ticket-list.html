@@ -1,0 +1,285 @@
+<app-page-header title="Tickets" description="Track, triage and resolve customer requests.">
+  @if (canEdit) {
+    <a routerLink="new" class="btn-primary max-md:hidden">
+      <app-icon name="plus" [size]="16" />
+      New ticket
+    </a>
+  }
+</app-page-header>
+
+<section class="card overflow-hidden">
+  <!-- Toolbar -->
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <app-search-input
+        class="min-w-0 flex-1 md:max-w-xs"
+        label="Search by subject, customer or ID"
+        [(value)]="list.search"
+      />
+
+      <div class="hidden flex-wrap items-center gap-2 lg:flex">
+        <app-ticket-filters [list]="list" [agents]="agents.value()" />
+      </div>
+
+      <button type="button" class="btn-secondary lg:hidden" (click)="filtersOpen.set(true)">
+        <app-icon name="filter" [size]="16" />
+        Filters
+        @if (list.activeFilterCount()) {
+          <span class="rounded bg-brand px-1.5 text-xs text-white">{{
+            list.activeFilterCount()
+          }}</span>
+        }
+      </button>
+    </div>
+
+    <app-filter-chips
+      [chips]="list.chips()"
+      (remove)="list.clearFilter($event)"
+      (clear)="list.clearAll()"
+    />
+  </div>
+
+  <!-- Bulk actions -->
+  @if (selected().size) {
+    <div
+      class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-soft px-4 py-2.5"
+      role="region"
+      aria-label="Bulk actions"
+    >
+      <span class="font-medium text-brand-ink">{{ selected().size }} selected</span>
+      <label class="flex items-center gap-2">
+        <span class="text-ink-muted">Set status</span>
+        <select
+          class="input min-h-9 w-auto"
+          [value]="bulkStatus()"
+          (change)="bulkStatus.set($any($event.target).value)"
+        >
+          @for (option of statusOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+      <button
+        type="button"
+        class="btn-primary min-h-9"
+        [disabled]="bulkSaving()"
+        (click)="applyBulkStatus()"
+      >
+        {{ bulkSaving() ? 'Updating…' : 'Apply' }}
+      </button>
+      <button type="button" class="btn-ghost min-h-9" (click)="clearSelection()">
+        Clear selection
+      </button>
+    </div>
+  }
+
+  <!-- Results -->
+  @if (tickets.isLoading() && !tickets.hasValue()) {
+    <app-skeleton-rows [rows]="8" />
+  } @else if (tickets.error()) {
+    <app-error-state [error]="tickets.error()" (retry)="tickets.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="ticket"
+      title="No tickets found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'New customer requests will appear here.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="tickets.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            @if (canEdit) {
+              <th class="w-10">
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  aria-label="Select all tickets on this page"
+                  [checked]="allSelected()"
+                  (change)="toggleAll()"
+                />
+              </th>
+            }
+            <th [attr.aria-sort]="list.sortState('number')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('number')"
+              >
+                ID <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th>Subject</th>
+            <th class="hidden lg:table-cell">Customer</th>
+            <th [attr.aria-sort]="list.sortState('priority')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('priority')"
+              >
+                Priority <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th>Status</th>
+            <th class="hidden xl:table-cell">Assignee</th>
+            <th [attr.aria-sort]="list.sortState('updatedAt')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('updatedAt')"
+              >
+                Updated <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th class="w-24"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (ticket of rows(); track ticket.id) {
+            <tr class="group" [class.bg-brand-soft]="selected().has(ticket.id)">
+              @if (canEdit) {
+                <td>
+                  <input
+                    type="checkbox"
+                    class="checkbox"
+                    [attr.aria-label]="'Select ticket #' + ticket.number"
+                    [checked]="selected().has(ticket.id)"
+                    (change)="toggle(ticket.id)"
+                  />
+                </td>
+              }
+              <td class="font-mono text-xs text-ink-muted">#{{ ticket.number }}</td>
+              <td class="max-w-80">
+                <a [routerLink]="ticket.id" class="block truncate font-medium hover:text-brand-ink">
+                  {{ ticket.subject }}
+                </a>
+                <span class="text-xs text-ink-muted lg:hidden">{{ ticket.customer.name }}</span>
+              </td>
+              <td class="hidden text-ink-muted lg:table-cell">{{ ticket.customer.name }}</td>
+              <td>
+                <app-badge [tone]="priorityLabels[ticket.priority].tone">
+                  {{ priorityLabels[ticket.priority].label }}
+                </app-badge>
+              </td>
+              <td>
+                <app-badge [tone]="statusLabels[ticket.status].tone" [dot]="true">
+                  {{ statusLabels[ticket.status].label }}
+                </app-badge>
+              </td>
+              <td class="hidden text-ink-muted xl:table-cell">
+                {{ ticket.assignee?.name ?? 'Unassigned' }}
+              </td>
+              <td class="whitespace-nowrap text-ink-muted">
+                {{ ticket.updatedAt | relativeTime }}
+                @if (isOverdue(ticket)) {
+                  <span class="mt-0.5 flex items-center gap-1 text-xs font-medium text-warn">
+                    <app-icon name="clock" [size]="12" /> SLA overdue
+                  </span>
+                }
+              </td>
+              <td>
+                <div
+                  class="flex justify-end opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                >
+                  @if (canEdit) {
+                    <a
+                      [routerLink]="[ticket.id, 'edit']"
+                      class="btn-icon"
+                      [attr.aria-label]="'Edit ticket #' + ticket.number"
+                    >
+                      <app-icon name="edit" [size]="16" />
+                    </a>
+                  }
+                  <app-menu [label]="'More actions for ticket #' + ticket.number">
+                    <a [routerLink]="ticket.id" class="menu-item">
+                      <app-icon name="eye" [size]="16" /> Open
+                    </a>
+                    @if (canEdit) {
+                      <button
+                        type="button"
+                        class="menu-item"
+                        (click)="setStatus(ticket, 'resolved')"
+                      >
+                        <app-icon name="check" [size]="16" /> Mark resolved
+                      </button>
+                      <button
+                        type="button"
+                        class="menu-item"
+                        (click)="setStatus(ticket, 'pending')"
+                      >
+                        <app-icon name="clock" [size]="16" /> Mark pending
+                      </button>
+                    }
+                  </app-menu>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (ticket of rows(); track ticket.id) {
+          <li>
+            <a [routerLink]="ticket.id" class="block space-y-2 px-4 py-3.5 active:bg-subtle">
+              <div class="flex items-center justify-between gap-2 text-xs text-ink-muted">
+                <span class="font-mono">#{{ ticket.number }}</span>
+                <span>{{ ticket.updatedAt | relativeTime }}</span>
+              </div>
+              <p class="font-medium">{{ ticket.subject }}</p>
+              <p class="text-ink-muted">
+                {{ ticket.customer.name }} · {{ ticket.assignee?.name ?? 'Unassigned' }}
+              </p>
+              <div class="flex flex-wrap gap-1.5">
+                <app-badge [tone]="statusLabels[ticket.status].tone" [dot]="true">
+                  {{ statusLabels[ticket.status].label }}
+                </app-badge>
+                <app-badge [tone]="priorityLabels[ticket.priority].tone">
+                  {{ priorityLabels[ticket.priority].label }}
+                </app-badge>
+                @if (isOverdue(ticket)) {
+                  <app-badge tone="warn">SLA overdue</app-badge>
+                }
+              </div>
+            </a>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>
+
+<!-- Mobile: filters drawer + sticky create action -->
+<app-drawer title="Filters" [(open)]="filtersOpen">
+  <div class="space-y-4 p-4">
+    <app-ticket-filters [list]="list" [agents]="agents.value()" [stacked]="true" />
+  </div>
+  <div drawer-footer class="flex gap-2 border-t border-line p-4">
+    <button type="button" class="btn-secondary flex-1" (click)="list.clearAll()">Clear</button>
+    <button type="button" class="btn-primary flex-1" (click)="filtersOpen.set(false)">
+      Show {{ total() }} results
+    </button>
+  </div>
+</app-drawer>
+
+@if (canEdit) {
+  <a
+    routerLink="new"
+    class="btn-primary fixed right-4 bottom-20 z-20 size-14 rounded-full p-0 shadow-lg md:hidden"
+    aria-label="New ticket"
+  >
+    <app-icon name="plus" [size]="22" />
+  </a>
+}

@@ -1,0 +1,146 @@
+<app-page-header
+  title="AI Workspace"
+  description="AI suggestions to help you work faster. You stay in control: nothing is changed or sent without you."
+/>
+
+<div class="grid gap-4 lg:grid-cols-3 lg:gap-6">
+  <!-- Context -->
+  <section class="card self-start p-4 md:p-5" aria-labelledby="context-heading">
+    <h2 id="context-heading" class="text-base">Context</h2>
+    <p class="mt-1 text-xs text-ink-muted">Choose what the AI should look at.</p>
+
+    <fieldset class="mt-4">
+      <legend class="sr-only">Context source</legend>
+      <div class="grid grid-cols-2 gap-1 rounded-control bg-subtle p-1">
+        @for (option of modes; track option.value) {
+          <label
+            class="flex min-h-9 cursor-pointer items-center justify-center rounded-md text-sm font-medium transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-brand max-md:min-h-11"
+            [class]="
+              mode() === option.value
+                ? 'bg-surface text-ink shadow-sm'
+                : 'text-ink-muted hover:text-ink'
+            "
+          >
+            <input
+              type="radio"
+              name="context-mode"
+              class="sr-only"
+              [value]="option.value"
+              [checked]="mode() === option.value"
+              (change)="mode.set(option.value)"
+            />
+            {{ option.label }}
+          </label>
+        }
+      </div>
+    </fieldset>
+
+    @if (mode() === 'ticket') {
+      <div class="mt-4">
+        <label for="context-ticket" class="field-label">Ticket</label>
+        <select
+          id="context-ticket"
+          class="input"
+          aria-describedby="context-ticket-hint"
+          [value]="selectedId()"
+          (change)="selectTicket($event)"
+        >
+          <option value="">
+            {{ openTickets.isLoading() ? 'Loading tickets…' : 'Select an open ticket' }}
+          </option>
+          @for (option of ticketOptions(); track option.id) {
+            <option [value]="option.id" [selected]="option.id === selectedId()">
+              #{{ option.number }} · {{ option.subject }}
+            </option>
+          }
+        </select>
+        @if (openTickets.error()) {
+          <p id="context-ticket-hint" class="field-error" role="alert">
+            Couldn’t load open tickets.
+            <button type="button" class="link" (click)="openTickets.reload()">Try again</button>
+          </p>
+        } @else {
+          <p id="context-ticket-hint" class="field-hint">
+            Showing the 25 most recent open tickets.
+          </p>
+        }
+      </div>
+
+      @if (ticket(); as ticket) {
+        <div class="mt-4 space-y-2 rounded-control border border-line bg-canvas p-3">
+          <div class="flex items-center justify-between gap-2 text-xs text-ink-muted">
+            <span class="font-mono">#{{ ticket.number }}</span>
+            <span>{{ ticket.customer.name }}</span>
+          </div>
+          <p class="font-medium">{{ ticket.subject }}</p>
+          <p class="line-clamp-4 text-ink-muted">{{ ticket.description }}</p>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <app-badge [tone]="statusLabels[ticket.status].tone" [dot]="true">
+              {{ statusLabels[ticket.status].label }}
+            </app-badge>
+            <app-badge [tone]="priorityLabels[ticket.priority].tone">
+              {{ priorityLabels[ticket.priority].label }}
+            </app-badge>
+          </div>
+          <a
+            [routerLink]="['/tickets', ticket.id]"
+            class="link inline-flex items-center gap-1 text-xs"
+          >
+            Open ticket <app-icon name="chevron-right" [size]="14" />
+          </a>
+        </div>
+      } @else if (selectedId()) {
+        <div class="mt-4 space-y-2" aria-hidden="true">
+          <div class="skeleton h-4 w-1/3"></div>
+          <div class="skeleton h-4 w-full"></div>
+          <div class="skeleton h-4 w-2/3"></div>
+        </div>
+      }
+    } @else {
+      <div class="mt-4">
+        <label for="context-text" class="field-label">Customer message or conversation</label>
+        <textarea
+          id="context-text"
+          rows="10"
+          class="input"
+          aria-describedby="context-text-hint"
+          placeholder="Paste an email, chat transcript or note…"
+          [value]="text()"
+          (input)="text.set($any($event.target).value)"
+        ></textarea>
+        <p id="context-text-hint" class="field-hint">
+          At least {{ minTextLength }} characters. Replies can only be sent from a ticket.
+        </p>
+      </div>
+    }
+  </section>
+
+  <!-- Actions and results -->
+  <section class="min-w-0 space-y-4 lg:col-span-2" aria-labelledby="actions-heading">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="actions-heading" class="text-base">AI actions</h2>
+      <button
+        type="button"
+        class="btn-secondary"
+        [disabled]="!request() || anyRunning()"
+        (click)="runAll()"
+      >
+        <app-icon name="sparkles" [size]="16" />
+        Run all
+      </button>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      @for (entry of actions; track entry[0]) {
+        <app-ai-result-card
+          [meta]="entry[1]"
+          [state]="states()[entry[0]]"
+          [disabled]="!request()"
+          (run)="run(entry[0])"
+        />
+      }
+    </div>
+
+    <app-suggested-reply [request]="request()" [ticket]="ticket()" [contextKey]="contextKey()" />
+  </section>
+</div>
