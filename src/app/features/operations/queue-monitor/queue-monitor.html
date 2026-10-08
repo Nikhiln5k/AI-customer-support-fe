@@ -1,0 +1,276 @@
+<section aria-labelledby="queues-heading" class="mb-6">
+  <div class="mb-3 flex items-center justify-between gap-2">
+    <h2 id="queues-heading" class="text-base">BullMQ queues</h2>
+    <button
+      type="button"
+      class="btn-secondary"
+      [disabled]="queues.isLoading()"
+      (click)="queues.reload()"
+    >
+      <app-icon name="refresh" [size]="16" />
+      {{ queues.isLoading() ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </div>
+
+  @if (queues.isLoading() && !queues.hasValue()) {
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-busy="true" aria-label="Loading">
+      @for (n of [1, 2, 3, 4]; track n) {
+        <div class="card space-y-3 p-4">
+          <div class="skeleton h-4 w-1/2"></div>
+          <div class="skeleton h-10"></div>
+        </div>
+      }
+    </div>
+  } @else if (queues.error()) {
+    <div class="card">
+      <app-error-state [error]="queues.error()" (retry)="queues.reload()" />
+    </div>
+  } @else if (!queues.value()?.length) {
+    <div class="card">
+      <app-empty-state
+        icon="activity"
+        title="No queues registered"
+        message="Queues appear here once workers connect."
+      />
+    </div>
+  } @else {
+    <ul
+      class="grid gap-3 transition-opacity sm:grid-cols-2 xl:grid-cols-4"
+      [class.opacity-60]="queues.isLoading()"
+    >
+      @for (queue of queues.value(); track queue.name) {
+        <li>
+          <button
+            type="button"
+            class="card block w-full p-4 text-left transition-colors hover:border-line-strong"
+            [class.ring-2]="selectedQueue() === queue.name"
+            [class.ring-brand]="selectedQueue() === queue.name"
+            [attr.aria-pressed]="selectedQueue() === queue.name"
+            (click)="select(queue.name)"
+          >
+            <span class="flex items-center justify-between gap-2">
+              <span class="truncate font-mono text-sm font-medium">{{ queue.name }}</span>
+              @if (queue.failed > 0) {
+                <app-badge tone="danger">{{ queue.failed }} failed</app-badge>
+              }
+            </span>
+            <!-- Spans only: a button may contain phrasing content only. -->
+            <span class="mt-3 grid grid-cols-3 gap-x-2 gap-y-3">
+              @for (count of counts; track count.key) {
+                <span class="block min-w-0">
+                  <span class="block truncate text-xs text-ink-muted">{{ count.label }}</span>
+                  <span
+                    class="block text-sm font-semibold tabular-nums"
+                    [class]="countClass(count.key, queue[count.key])"
+                  >
+                    {{ queue[count.key] | number }}
+                  </span>
+                </span>
+              }
+            </span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<section class="card overflow-hidden" aria-labelledby="jobs-heading">
+  @let queue = selectedQueue();
+
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <h2 id="jobs-heading" class="text-base">
+      @if (queue) {
+        Jobs in <span class="font-mono">{{ queue }}</span>
+      } @else {
+        Jobs
+      }
+    </h2>
+
+    @if (queue) {
+      <div class="flex flex-wrap items-center gap-2">
+        <app-search-input
+          class="min-w-0 flex-1 md:max-w-xs"
+          label="Search by job ID or type"
+          [(value)]="list.search"
+        />
+        <label class="block w-full sm:w-44">
+          <span class="sr-only">Status</span>
+          <select class="input" [value]="list.filters().status" (change)="setStatus($event)">
+            <option value="">All statuses</option>
+            @for (option of statusOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
+    }
+  </div>
+
+  @if (!queue) {
+    <app-empty-state
+      icon="activity"
+      title="Select a queue"
+      message="Choose a queue above to inspect its jobs."
+    />
+  } @else if (jobs.isLoading() && !jobs.hasValue()) {
+    <app-skeleton-rows [rows]="6" />
+  } @else if (jobs.error()) {
+    <app-error-state [error]="jobs.error()" (retry)="jobs.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="inbox"
+      title="No jobs found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'This queue has no jobs right now.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="jobs.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th class="text-right">Attempts</th>
+            <th>Created</th>
+            <th class="hidden lg:table-cell">Finished</th>
+            <th>Error</th>
+            <th class="w-28"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (job of rows(); track job.id) {
+            <tr>
+              <td class="font-mono text-xs whitespace-nowrap text-ink-muted">{{ job.id }}</td>
+              <td class="whitespace-nowrap">{{ job.type }}</td>
+              <td>
+                <app-badge [tone]="statusLabels[job.status].tone" [dot]="true">
+                  {{ statusLabels[job.status].label }}
+                </app-badge>
+              </td>
+              <td class="text-right tabular-nums">{{ job.attempts }}</td>
+              <td class="whitespace-nowrap text-ink-muted">
+                <time [attr.datetime]="job.createdAt" [attr.title]="job.createdAt | date: 'medium'">
+                  {{ job.createdAt | relativeTime }}
+                </time>
+              </td>
+              <td class="hidden whitespace-nowrap text-ink-muted lg:table-cell">
+                @if (job.finishedAt) {
+                  <time
+                    [attr.datetime]="job.finishedAt"
+                    [attr.title]="job.finishedAt | date: 'medium'"
+                  >
+                    {{ job.finishedAt | relativeTime }}
+                  </time>
+                } @else {
+                  —
+                }
+              </td>
+              <td class="max-w-64">
+                @if (job.error) {
+                  <details class="text-xs text-danger">
+                    <summary class="cursor-pointer truncate" [title]="job.error">
+                      {{ job.error }}
+                    </summary>
+                    <p class="mt-1 wrap-break-word whitespace-normal">{{ job.error }}</p>
+                  </details>
+                } @else {
+                  <span class="text-ink-faint">—</span>
+                }
+              </td>
+              <td>
+                @if (job.status === 'failed') {
+                  <div class="flex justify-end gap-1">
+                    <button
+                      type="button"
+                      class="btn-secondary min-h-9"
+                      [disabled]="busyJobId() === job.id"
+                      [attr.aria-label]="'Retry job ' + job.id"
+                      (click)="retry(job)"
+                    >
+                      <app-icon name="refresh" [size]="14" />
+                      Retry
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-icon hover:text-danger"
+                      [disabled]="busyJobId() === job.id"
+                      [attr.aria-label]="'Remove job ' + job.id"
+                      (click)="remove(job)"
+                    >
+                      <app-icon name="trash" [size]="16" />
+                    </button>
+                  </div>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (job of rows(); track job.id) {
+          <li class="space-y-2 px-4 py-3.5">
+            <div class="flex items-center justify-between gap-2 text-xs text-ink-muted">
+              <span class="font-mono">{{ job.id }}</span>
+              <span>{{ job.createdAt | relativeTime }}</span>
+            </div>
+            <p class="font-medium">{{ job.type }}</p>
+            <div class="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+              <app-badge [tone]="statusLabels[job.status].tone" [dot]="true">
+                {{ statusLabels[job.status].label }}
+              </app-badge>
+              <span>{{ job.attempts }} {{ job.attempts === 1 ? 'attempt' : 'attempts' }}</span>
+              @if (job.finishedAt) {
+                <span>· finished {{ job.finishedAt | relativeTime }}</span>
+              }
+            </div>
+            @if (job.error) {
+              <p
+                class="rounded-control bg-danger-soft px-3 py-2 text-xs wrap-break-word text-danger"
+              >
+                {{ job.error }}
+              </p>
+            }
+            @if (job.status === 'failed') {
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  class="btn-secondary flex-1"
+                  [disabled]="busyJobId() === job.id"
+                  [attr.aria-label]="'Retry job ' + job.id"
+                  (click)="retry(job)"
+                >
+                  <app-icon name="refresh" [size]="16" />
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  class="btn-secondary flex-1 text-danger"
+                  [disabled]="busyJobId() === job.id"
+                  [attr.aria-label]="'Remove job ' + job.id"
+                  (click)="remove(job)"
+                >
+                  <app-icon name="trash" [size]="16" />
+                  Remove
+                </button>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>

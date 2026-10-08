@@ -1,0 +1,171 @@
+@let ticketNumber = ticket.value()?.number;
+
+<app-page-header
+  [title]="isEdit() ? 'Edit ticket' : 'New ticket'"
+  [description]="
+    isEdit() ? 'Update the request details and triage.' : 'Log a request on behalf of a customer.'
+  "
+  [breadcrumbs]="
+    isEdit()
+      ? [
+          { label: 'Tickets', link: '/tickets' },
+          { label: '#' + (ticketNumber ?? '…'), link: '/tickets/' + id() },
+          { label: 'Edit' },
+        ]
+      : [{ label: 'Tickets', link: '/tickets' }, { label: 'New ticket' }]
+  "
+/>
+
+@if (ticket.error()) {
+  <div class="card">
+    <app-error-state [error]="ticket.error()" (retry)="ticket.reload()" />
+  </div>
+} @else if (isEdit() && ticket.isLoading()) {
+  <div class="card space-y-4 p-6" aria-busy="true" aria-label="Loading ticket">
+    <div class="skeleton h-4 w-32"></div>
+    <div class="skeleton h-10"></div>
+    <div class="skeleton h-10"></div>
+    <div class="skeleton h-28"></div>
+  </div>
+} @else {
+  <form [formRoot]="ticketForm" class="card" novalidate>
+    @if (saveError(); as error) {
+      <p
+        class="m-4 mb-0 rounded-control bg-danger-soft p-3 text-danger md:m-6 md:mb-0"
+        role="alert"
+      >
+        {{ error.message }}
+      </p>
+    }
+
+    <div class="grid gap-8 p-4 md:p-6 lg:grid-cols-[2fr_1fr]">
+      <!-- Request -->
+      <fieldset class="space-y-5">
+        <legend class="mb-4 text-base font-semibold">Request</legend>
+
+        <div>
+          <label for="customer" class="field-label"
+            >Customer <span class="text-danger" aria-hidden="true">*</span></label
+          >
+          <select
+            id="customer"
+            class="input"
+            [formField]="ticketForm.customerId"
+            [attr.aria-invalid]="
+              ticketForm.customerId().touched() && ticketForm.customerId().invalid()
+            "
+            aria-describedby="customer-error"
+          >
+            <option value="">
+              {{ customers.isLoading() ? 'Loading customers…' : 'Select a customer' }}
+            </option>
+            @for (customer of customers.value()?.items ?? []; track customer.id) {
+              <option [value]="customer.id">{{ customer.name }} · {{ customer.company }}</option>
+            }
+          </select>
+          <app-field-error id="customer-error" [field]="ticketForm.customerId" />
+        </div>
+
+        <div>
+          <label for="subject" class="field-label"
+            >Subject <span class="text-danger" aria-hidden="true">*</span></label
+          >
+          <input
+            id="subject"
+            class="input"
+            [formField]="ticketForm.subject"
+            [attr.aria-invalid]="ticketForm.subject().touched() && ticketForm.subject().invalid()"
+            aria-describedby="subject-error"
+          />
+          <app-field-error id="subject-error" [field]="ticketForm.subject" />
+        </div>
+
+        <div>
+          <label for="description" class="field-label"
+            >Description <span class="text-danger" aria-hidden="true">*</span></label
+          >
+          <textarea
+            id="description"
+            rows="7"
+            class="input resize-y"
+            [formField]="ticketForm.description"
+            [attr.aria-invalid]="
+              ticketForm.description().touched() && ticketForm.description().invalid()
+            "
+            aria-describedby="description-hint description-error"
+          ></textarea>
+          <p id="description-hint" class="field-hint">
+            Include steps to reproduce, account IDs or error messages.
+          </p>
+          <app-field-error id="description-error" [field]="ticketForm.description" />
+        </div>
+      </fieldset>
+
+      <!-- Triage -->
+      <fieldset class="space-y-5">
+        <legend class="mb-4 text-base font-semibold">Triage</legend>
+
+        <div>
+          <label for="priority" class="field-label">Priority</label>
+          <select id="priority" class="input" [formField]="ticketForm.priority">
+            @for (option of priorities; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+
+        @if (isEdit()) {
+          <div>
+            <label for="status" class="field-label">Status</label>
+            <select id="status" class="input" [formField]="ticketForm.status">
+              @for (option of statuses; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        <div>
+          <label for="assignee" class="field-label">Assignee</label>
+          <select id="assignee" class="input" [formField]="ticketForm.assigneeId">
+            <option value="">Unassigned</option>
+            @for (agent of agents.value(); track agent.id) {
+              <option [value]="agent.id">{{ agent.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div>
+          <label for="tags" class="field-label">Tags</label>
+          <input
+            id="tags"
+            class="input"
+            placeholder="billing, api"
+            [formField]="ticketForm.tags"
+            aria-describedby="tags-hint"
+          />
+          <p id="tags-hint" class="field-hint">Separate tags with commas.</p>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="sticky-actions">
+      <a
+        [routerLink]="isEdit() ? ['/tickets', id()] : '/tickets'"
+        class="btn-secondary max-md:flex-1"
+        >Cancel</a
+      >
+      <button
+        type="submit"
+        class="btn-primary max-md:flex-1"
+        [disabled]="ticketForm().submitting()"
+      >
+        @if (ticketForm().submitting()) {
+          {{ isEdit() ? 'Saving…' : 'Creating…' }}
+        } @else {
+          {{ isEdit() ? 'Save changes' : 'Create ticket' }}
+        }
+      </button>
+    </div>
+  </form>
+}

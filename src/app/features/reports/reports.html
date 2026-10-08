@@ -1,0 +1,188 @@
+<app-page-header
+  title="Reports"
+  description="Support performance across your team and AI assistant."
+>
+  <div
+    class="flex rounded-control border border-line-strong bg-surface p-0.5"
+    role="group"
+    aria-label="Date range"
+  >
+    @for (option of ranges; track option.value) {
+      <button
+        type="button"
+        class="min-h-9 rounded-[calc(var(--radius-control)-2px)] px-3 text-sm font-medium transition-colors"
+        [class]="range() === option.value ? 'bg-subtle text-ink' : 'text-ink-muted hover:text-ink'"
+        [attr.aria-pressed]="range() === option.value"
+        (click)="range.set(option.value)"
+      >
+        {{ option.label }}
+      </button>
+    }
+  </div>
+</app-page-header>
+
+@if (report.error()) {
+  <div class="card">
+    <app-error-state [error]="report.error()" (retry)="report.reload()" />
+  </div>
+} @else {
+  @let data = report.value();
+  @let loading = report.isLoading();
+
+  <div class="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4" [attr.aria-busy]="loading">
+    <app-stat-card
+      label="SLA performance"
+      icon="clock"
+      [loading]="loading"
+      [value]="(data?.slaPerformance ?? 0) + '%'"
+      hint="Tickets resolved within SLA"
+      [warn]="(data?.slaPerformance ?? 100) < 90"
+    />
+    <app-stat-card
+      label="AI-assisted resolution"
+      icon="sparkles"
+      [loading]="loading"
+      [value]="(data?.aiAssistedRate ?? 0) + '%'"
+      hint="Resolved with AI suggestions"
+    />
+    <app-stat-card
+      label="Ticket volume"
+      icon="ticket"
+      [loading]="loading"
+      [value]="totalVolume()"
+      hint="Tickets created in this period"
+    />
+    <app-stat-card
+      label="Avg. resolution time"
+      icon="check"
+      [loading]="loading"
+      [value]="avgResolution() + ' h'"
+      [hint]="'First response in ' + avgResponse() + ' min on average'"
+    />
+  </div>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-2">
+    <section class="card p-4 md:p-5 lg:col-span-2" aria-labelledby="volume-title">
+      <h2 id="volume-title" class="text-base">Ticket volume</h2>
+      <p class="mt-0.5 text-xs text-ink-muted">New tickets per week</p>
+      @if (loading) {
+        <div class="skeleton mt-4 h-48"></div>
+      } @else if (data?.volume?.length) {
+        <app-bar-chart
+          class="mt-4"
+          caption="Ticket volume per week"
+          [data]="data!.volume"
+          [height]="180"
+        />
+      } @else {
+        <app-empty-state icon="chart" title="No tickets in this period" />
+      }
+    </section>
+
+    <section class="card p-4 md:p-5" aria-labelledby="resolution-title">
+      <h2 id="resolution-title" class="text-base">Resolution time</h2>
+      <p class="mt-0.5 text-xs text-ink-muted">Average hours to resolve, per week</p>
+      @if (loading) {
+        <div class="skeleton mt-4 h-40"></div>
+      } @else if (data?.resolutionHours?.length) {
+        <app-bar-chart
+          class="mt-4"
+          caption="Average resolution time in hours per week"
+          unit=" h"
+          color="var(--color-chart-2)"
+          [data]="data!.resolutionHours"
+        />
+      } @else {
+        <app-empty-state icon="chart" title="No resolved tickets yet" />
+      }
+    </section>
+
+    <section class="card p-4 md:p-5" aria-labelledby="response-title">
+      <h2 id="response-title" class="text-base">Response time</h2>
+      <p class="mt-0.5 text-xs text-ink-muted">Average minutes to first response, per week</p>
+      @if (loading) {
+        <div class="skeleton mt-4 h-40"></div>
+      } @else if (data?.responseMinutes?.length) {
+        <app-bar-chart
+          class="mt-4"
+          caption="Average first response time in minutes per week"
+          unit=" min"
+          color="var(--color-chart-2)"
+          [data]="data!.responseMinutes"
+        />
+      } @else {
+        <app-empty-state icon="chart" title="No responses yet" />
+      }
+    </section>
+
+    <section class="card overflow-hidden lg:col-span-2" aria-labelledby="workload-title">
+      <div class="flex flex-wrap items-end justify-between gap-2 p-4 md:p-5">
+        <div>
+          <h2 id="workload-title" class="text-base">Agent workload</h2>
+          <p class="mt-0.5 text-xs text-ink-muted">Resolved and open tickets per agent</p>
+        </div>
+        <div class="flex gap-4 text-xs text-ink-muted" aria-hidden="true">
+          <span class="flex items-center gap-1.5">
+            <span class="size-2 rounded-full bg-(--color-chart-1)"></span>Resolved
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="size-2 rounded-full bg-(--color-chart-2)"></span>Open
+          </span>
+        </div>
+      </div>
+
+      @if (loading) {
+        <div class="space-y-3 px-4 pb-5 md:px-5">
+          @for (row of [1, 2, 3, 4]; track row) {
+            <div class="skeleton h-8"></div>
+          }
+        </div>
+      } @else if (!workload().length) {
+        <app-empty-state icon="team" title="No agent activity in this period" />
+      } @else {
+        <table class="data-table hidden border-t border-line md:table">
+          <thead>
+            <tr>
+              <th scope="col">Agent</th>
+              <th scope="col" class="text-right">Resolved</th>
+              <th scope="col" class="text-right">Open</th>
+              <th scope="col" class="w-1/2"><span class="sr-only">Workload share</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of workload(); track row.agent) {
+              <tr>
+                <td class="font-medium">{{ row.agent }}</td>
+                <td class="text-right tabular-nums">{{ row.resolved }}</td>
+                <td class="text-right tabular-nums">{{ row.open }}</td>
+                <td>
+                  <div class="flex h-2 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
+                    <div class="bg-(--color-chart-1)" [style.width.%]="row.resolvedPct"></div>
+                    <div class="bg-(--color-chart-2)" [style.width.%]="row.openPct"></div>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        <ul class="divide-y divide-line border-t border-line md:hidden">
+          @for (row of workload(); track row.agent) {
+            <li class="space-y-2 px-4 py-3.5">
+              <div class="flex items-center justify-between gap-2">
+                <p class="font-medium">{{ row.agent }}</p>
+                <p class="text-xs text-ink-muted">
+                  {{ row.resolved }} resolved · {{ row.open }} open
+                </p>
+              </div>
+              <div class="flex h-2 overflow-hidden rounded-full bg-subtle" aria-hidden="true">
+                <div class="bg-(--color-chart-1)" [style.width.%]="row.resolvedPct"></div>
+                <div class="bg-(--color-chart-2)" [style.width.%]="row.openPct"></div>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  </div>
+}

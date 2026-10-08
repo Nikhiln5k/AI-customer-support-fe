@@ -1,0 +1,152 @@
+<app-page-header
+  [title]="isEdit() ? 'Edit article' : 'New article'"
+  [description]="
+    isEdit()
+      ? 'Changes to published articles are used by AI search right away.'
+      : 'Write a help article for customers, agents and AI search.'
+  "
+  [breadcrumbs]="breadcrumbs()"
+/>
+
+@if (isEdit() && article.isLoading()) {
+  <div class="card"><app-skeleton-rows [rows]="6" /></div>
+} @else if (isEdit() && article.error()) {
+  <div class="card"><app-error-state [error]="article.error()" (retry)="article.reload()" /></div>
+} @else {
+  <form [formRoot]="articleForm" novalidate>
+    @if (error(); as error) {
+      <div
+        class="mb-4 flex gap-2 rounded-control border border-danger/20 bg-danger-soft p-3 text-danger"
+        role="alert"
+      >
+        <app-icon name="error" class="mt-0.5" />
+        <p>{{ error.message }}</p>
+      </div>
+    }
+
+    <div class="grid gap-4 lg:grid-cols-3 lg:gap-6">
+      <section class="card space-y-4 p-4 md:p-6 lg:col-span-2" aria-labelledby="content-heading">
+        <h2 id="content-heading" class="text-base">Content</h2>
+
+        <div>
+          <label for="title" class="field-label">
+            Title <span class="text-danger" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="title"
+            type="text"
+            class="input"
+            autocomplete="off"
+            [formField]="articleForm.title"
+            [attr.aria-invalid]="articleForm.title().touched() && articleForm.title().invalid()"
+            aria-describedby="title-error"
+          />
+          <app-field-error id="title-error" [field]="articleForm.title" />
+        </div>
+
+        <div>
+          <label for="content" class="field-label">
+            Article body <span class="text-danger" aria-hidden="true">*</span>
+          </label>
+          <textarea
+            id="content"
+            rows="16"
+            class="input font-mono text-[13px] leading-relaxed"
+            [formField]="articleForm.content"
+            [attr.aria-invalid]="articleForm.content().touched() && articleForm.content().invalid()"
+            aria-describedby="content-hint content-error"
+          ></textarea>
+          <p id="content-hint" class="field-hint">
+            Plain text with simple formatting: start a line with "## " for a heading, "1. " for a
+            numbered step, "- " for a bullet, and wrap words in **double asterisks** for bold.
+          </p>
+          <app-field-error id="content-error" [field]="articleForm.content" />
+        </div>
+      </section>
+
+      <section class="card space-y-4 self-start p-4 md:p-6" aria-labelledby="details-heading">
+        <h2 id="details-heading" class="text-base">Details</h2>
+
+        <div>
+          <label for="category" class="field-label">
+            Category <span class="text-danger" aria-hidden="true">*</span>
+          </label>
+          <select
+            id="category"
+            class="input"
+            [formField]="articleForm.category"
+            [attr.aria-invalid]="
+              articleForm.category().touched() && articleForm.category().invalid()
+            "
+            aria-describedby="category-error"
+          >
+            <option value="" disabled>Select a category</option>
+            @for (category of categoryOptions(); track category) {
+              <option [value]="category" [selected]="category === articleForm.category().value()">
+                {{ category }}
+              </option>
+            }
+          </select>
+          <app-field-error id="category-error" [field]="articleForm.category" />
+        </div>
+
+        <div>
+          <label for="status" class="field-label">Status</label>
+          <select
+            id="status"
+            class="input"
+            [formField]="articleForm.status"
+            aria-describedby="status-hint"
+          >
+            @for (option of statuses; track option.value) {
+              <option
+                [value]="option.value"
+                [selected]="option.value === articleForm.status().value()"
+              >
+                {{ option.label }}
+              </option>
+            }
+          </select>
+          <p id="status-hint" class="field-hint">Only published articles are used by AI search.</p>
+        </div>
+
+        <div>
+          <label for="tags" class="field-label">Tags</label>
+          <input
+            id="tags"
+            type="text"
+            class="input"
+            autocomplete="off"
+            placeholder="billing, refunds"
+            [formField]="articleForm.tags"
+            aria-describedby="tags-hint"
+          />
+          <p id="tags-hint" class="field-hint">Separate tags with commas.</p>
+          @if (tagPreview().length) {
+            <ul class="mt-2 flex flex-wrap gap-1.5" aria-label="Tags preview">
+              @for (tag of tagPreview(); track tag) {
+                <li class="badge bg-subtle text-ink-muted">{{ tag }}</li>
+              }
+            </ul>
+          }
+        </div>
+      </section>
+    </div>
+
+    <div class="sticky-actions">
+      <a
+        [routerLink]="isEdit() ? ['/knowledge-base', id()] : '/knowledge-base'"
+        class="btn-secondary"
+      >
+        Cancel
+      </a>
+      <button type="submit" class="btn-primary" [disabled]="articleForm().submitting()">
+        @if (articleForm().submitting()) {
+          Saving…
+        } @else {
+          {{ isEdit() ? 'Save changes' : 'Create article' }}
+        }
+      </button>
+    </div>
+  </form>
+}

@@ -1,0 +1,129 @@
+<app-page-header
+  [title]="isEdit() ? 'Edit user' : 'Invite user'"
+  [description]="
+    isEdit()
+      ? 'Change this person’s details, role or access.'
+      : 'We’ll email them a link to join your workspace.'
+  "
+  [breadcrumbs]="breadcrumbs()"
+/>
+
+@if (user.error()) {
+  <div class="card">
+    <app-error-state [error]="user.error()" (retry)="user.reload()" />
+  </div>
+} @else if (isEdit() && user.isLoading()) {
+  <div class="card space-y-4 p-6" aria-busy="true" aria-label="Loading user">
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="skeleton h-10"></div>
+      <div class="skeleton h-10"></div>
+    </div>
+    <div class="skeleton h-40"></div>
+  </div>
+} @else {
+  <form [formRoot]="userForm" class="card" novalidate>
+    @if (saveError(); as error) {
+      <p
+        class="m-4 mb-0 rounded-control bg-danger-soft p-3 text-danger md:m-6 md:mb-0"
+        role="alert"
+      >
+        {{ error.message }}
+      </p>
+    }
+
+    <div class="space-y-6 p-4 md:p-6">
+      <div class="grid gap-5 md:grid-cols-2">
+        <div>
+          <label for="name" class="field-label">
+            Name <span class="text-danger" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="name"
+            class="input"
+            autocomplete="off"
+            [formField]="userForm.name"
+            [attr.aria-invalid]="userForm.name().touched() && userForm.name().invalid()"
+            aria-describedby="name-error"
+          />
+          <app-field-error id="name-error" [field]="userForm.name" />
+        </div>
+
+        <div>
+          <label for="email" class="field-label">
+            Email <span class="text-danger" aria-hidden="true">*</span>
+          </label>
+          <input
+            id="email"
+            type="email"
+            class="input"
+            autocomplete="off"
+            [formField]="userForm.email"
+            [attr.aria-invalid]="userForm.email().touched() && userForm.email().invalid()"
+            aria-describedby="email-error"
+          />
+          <app-field-error id="email-error" [field]="userForm.email" />
+        </div>
+      </div>
+
+      <fieldset aria-describedby="role-hint">
+        <legend class="field-label">Role</legend>
+        <div class="grid gap-2 md:grid-cols-3">
+          @for (role of roles; track role.value) {
+            <label
+              class="flex cursor-pointer gap-3 rounded-control border border-line p-3 has-checked:border-brand has-checked:bg-brand-soft has-disabled:cursor-not-allowed has-disabled:opacity-60"
+            >
+              <input
+                type="radio"
+                class="mt-0.5 accent-brand"
+                [value]="role.value"
+                [formField]="userForm.role"
+                [attr.aria-describedby]="'role-' + role.value + '-desc'"
+              />
+              <span>
+                <span class="block font-medium">{{ role.label }}</span>
+                <span [id]="'role-' + role.value + '-desc'" class="block text-xs text-ink-muted">
+                  {{ role.description }}
+                </span>
+              </span>
+            </label>
+          }
+        </div>
+        <p id="role-hint" class="field-hint">
+          @if (isSelf()) {
+            You can’t change your own role or status.
+          } @else {
+            Roles only shape what people see here. Permissions are enforced by the server.
+          }
+        </p>
+      </fieldset>
+
+      @if (isEdit()) {
+        <div class="md:w-1/2 md:pr-2.5">
+          <label for="status" class="field-label">Status</label>
+          <select
+            id="status"
+            class="input"
+            [formField]="userForm.status"
+            aria-describedby="status-hint"
+          >
+            @for (option of statuses; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+          <p id="status-hint" class="field-hint">Disabled users can’t sign in.</p>
+        </div>
+      }
+    </div>
+
+    <div class="sticky-actions">
+      <a routerLink="/team" class="btn-secondary max-md:flex-1">Cancel</a>
+      <button type="submit" class="btn-primary max-md:flex-1" [disabled]="userForm().submitting()">
+        @if (userForm().submitting()) {
+          {{ isEdit() ? 'Saving…' : 'Sending…' }}
+        } @else {
+          {{ isEdit() ? 'Save changes' : 'Send invite' }}
+        }
+      </button>
+    </div>
+  </form>
+}

@@ -1,0 +1,232 @@
+<app-page-header
+  title="Team"
+  description="Manage who can access your workspace and what they can do."
+>
+  <a routerLink="invite" class="btn-primary max-md:hidden">
+    <app-icon name="plus" [size]="16" />
+    Invite user
+  </a>
+</app-page-header>
+
+<section class="card overflow-hidden">
+  <!-- Toolbar -->
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <app-search-input
+        class="min-w-0 flex-1 md:max-w-xs"
+        label="Search by name or email"
+        [(value)]="list.search"
+      />
+
+      <div class="hidden flex-wrap items-center gap-2 md:flex">
+        <app-user-filters [list]="list" />
+      </div>
+
+      <button type="button" class="btn-secondary md:hidden" (click)="filtersOpen.set(true)">
+        <app-icon name="filter" [size]="16" />
+        Filters
+        @if (list.activeFilterCount()) {
+          <span class="rounded bg-brand px-1.5 text-xs text-white">{{
+            list.activeFilterCount()
+          }}</span>
+        }
+      </button>
+    </div>
+
+    <app-filter-chips
+      [chips]="list.chips()"
+      (remove)="list.clearFilter($event)"
+      (clear)="list.clearAll()"
+    />
+  </div>
+
+  <!-- Results -->
+  @if (users.isLoading() && !users.hasValue()) {
+    <app-skeleton-rows [rows]="6" />
+  } @else if (users.error()) {
+    <app-error-state [error]="users.error()" (retry)="users.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="team"
+      title="No users found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'Invite your teammates to start working tickets together.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      } @else {
+        <a routerLink="invite" class="btn-primary">
+          <app-icon name="plus" [size]="16" /> Invite user
+        </a>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="users.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            <th [attr.aria-sort]="list.sortState('name')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('name')"
+              >
+                Name <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th class="hidden lg:table-cell">Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th [attr.aria-sort]="list.sortState('lastActiveAt')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('lastActiveAt')"
+              >
+                Last active <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th class="w-24"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of rows(); track user.id) {
+            <tr class="group">
+              <td class="max-w-72">
+                <div class="flex items-center gap-3">
+                  <app-avatar [name]="user.name" />
+                  <div class="min-w-0">
+                    <span class="block truncate font-medium">
+                      {{ user.name }}
+                      @if (user.id === currentUserId) {
+                        <span class="font-normal text-ink-muted">(you)</span>
+                      }
+                    </span>
+                    <span class="block truncate text-xs text-ink-muted lg:hidden">{{
+                      user.email
+                    }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="hidden max-w-60 truncate text-ink-muted lg:table-cell">
+                {{ user.email }}
+              </td>
+              <td>{{ roleLabels[user.role] }}</td>
+              <td>
+                <app-badge [tone]="statusLabels[user.status].tone" [dot]="true">
+                  {{ statusLabels[user.status].label }}
+                </app-badge>
+              </td>
+              <td class="whitespace-nowrap text-ink-muted">
+                {{ user.lastActiveAt ? (user.lastActiveAt | relativeTime) : 'Never' }}
+              </td>
+              <td>
+                <div class="flex justify-end">
+                  <a
+                    [routerLink]="[user.id, 'edit']"
+                    class="btn-icon"
+                    [attr.aria-label]="'Edit ' + user.name"
+                  >
+                    <app-icon name="edit" [size]="16" />
+                  </a>
+                  @if (user.id !== currentUserId) {
+                    <app-menu [label]="'More actions for ' + user.name">
+                      @if (user.status === 'disabled') {
+                        <button type="button" class="menu-item" (click)="toggleDisabled(user)">
+                          <app-icon name="check" [size]="16" /> Enable
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="menu-item text-danger"
+                          (click)="toggleDisabled(user)"
+                        >
+                          <app-icon name="lock" [size]="16" /> Disable
+                        </button>
+                      }
+                    </app-menu>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (user of rows(); track user.id) {
+          <li class="flex items-start gap-3 px-4 py-3.5">
+            <app-avatar [name]="user.name" [size]="36" />
+            <div class="min-w-0 flex-1 space-y-1">
+              <p class="truncate font-medium">
+                {{ user.name }}
+                @if (user.id === currentUserId) {
+                  <span class="font-normal text-ink-muted">(you)</span>
+                }
+              </p>
+              <p class="truncate text-ink-muted">{{ user.email }}</p>
+              <div class="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                <span>{{ roleLabels[user.role] }}</span>
+                <app-badge [tone]="statusLabels[user.status].tone" [dot]="true">
+                  {{ statusLabels[user.status].label }}
+                </app-badge>
+                <span
+                  >Active
+                  {{ user.lastActiveAt ? (user.lastActiveAt | relativeTime) : 'never' }}</span
+                >
+              </div>
+            </div>
+            <app-menu [label]="'Actions for ' + user.name">
+              <a [routerLink]="[user.id, 'edit']" class="menu-item">
+                <app-icon name="edit" [size]="16" /> Edit
+              </a>
+              @if (user.id !== currentUserId) {
+                @if (user.status === 'disabled') {
+                  <button type="button" class="menu-item" (click)="toggleDisabled(user)">
+                    <app-icon name="check" [size]="16" /> Enable
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="menu-item text-danger"
+                    (click)="toggleDisabled(user)"
+                  >
+                    <app-icon name="lock" [size]="16" /> Disable
+                  </button>
+                }
+              }
+            </app-menu>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>
+
+<!-- Mobile: filters drawer + sticky invite action -->
+<app-drawer title="Filters" [(open)]="filtersOpen">
+  <div class="space-y-4 p-4">
+    <app-user-filters [list]="list" [stacked]="true" />
+  </div>
+  <div drawer-footer class="flex gap-2 border-t border-line p-4">
+    <button type="button" class="btn-secondary flex-1" (click)="list.clearAll()">Clear</button>
+    <button type="button" class="btn-primary flex-1" (click)="filtersOpen.set(false)">
+      Show {{ total() }} results
+    </button>
+  </div>
+</app-drawer>
+
+<a
+  routerLink="invite"
+  class="btn-primary fixed right-4 bottom-20 z-20 size-14 rounded-full p-0 shadow-lg md:hidden"
+  aria-label="Invite user"
+>
+  <app-icon name="plus" [size]="22" />
+</a>

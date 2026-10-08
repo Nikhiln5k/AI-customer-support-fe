@@ -1,0 +1,219 @@
+<app-page-header
+  title="Audit logs"
+  description="Review who did what across your workspace, and when."
+/>
+
+<section class="card overflow-hidden">
+  <!-- Toolbar -->
+  <div class="space-y-3 border-b border-line p-3 md:p-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <app-search-input
+        class="min-w-0 flex-1 md:max-w-xs"
+        label="Search by actor, action or resource"
+        [(value)]="list.search"
+      />
+
+      <div class="hidden flex-wrap items-center gap-2 md:flex">
+        <app-audit-filters [list]="list" />
+      </div>
+
+      <button type="button" class="btn-secondary md:hidden" (click)="filtersOpen.set(true)">
+        <app-icon name="filter" [size]="16" />
+        Filters
+        @if (list.activeFilterCount()) {
+          <span class="rounded bg-brand px-1.5 text-xs text-white">{{
+            list.activeFilterCount()
+          }}</span>
+        }
+      </button>
+    </div>
+
+    <app-filter-chips
+      [chips]="list.chips()"
+      (remove)="list.clearFilter($event)"
+      (clear)="list.clearAll()"
+    />
+  </div>
+
+  <!-- Results -->
+  @if (logs.isLoading() && !logs.hasValue()) {
+    <app-skeleton-rows [rows]="8" />
+  } @else if (logs.error()) {
+    <app-error-state [error]="logs.error()" (retry)="logs.reload()" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      icon="audit"
+      title="No audit events found"
+      [message]="
+        list.chips().length || list.search()
+          ? 'Try adjusting your search or filters.'
+          : 'Sign-ins, setting changes and other admin activity will appear here.'
+      "
+    >
+      @if (list.chips().length || list.search()) {
+        <button type="button" class="btn-secondary" (click)="list.clearAll()">Clear filters</button>
+      }
+    </app-empty-state>
+  } @else {
+    <div [class.opacity-60]="logs.isLoading()" class="transition-opacity">
+      <!-- Desktop table -->
+      <table class="data-table hidden md:table">
+        <thead>
+          <tr>
+            <th>Actor</th>
+            <th>Action</th>
+            <th class="hidden lg:table-cell">Resource</th>
+            <th [attr.aria-sort]="list.sortState('timestamp')">
+              <button
+                type="button"
+                class="flex items-center gap-1 hover:text-ink"
+                (click)="list.toggleSort('timestamp')"
+              >
+                Timestamp <app-icon name="sort" [size]="12" />
+              </button>
+            </th>
+            <th>Result</th>
+            <th class="w-14"><span class="sr-only">Details</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (log of rows(); track log.id) {
+            <tr>
+              <td class="font-medium">{{ log.actor }}</td>
+              <td>
+                <code class="font-mono text-xs">{{ log.action }}</code>
+                <span class="block font-mono text-xs text-ink-muted lg:hidden">{{
+                  log.resource
+                }}</span>
+              </td>
+              <td class="hidden font-mono text-xs text-ink-muted lg:table-cell">
+                {{ log.resource }}
+              </td>
+              <td class="whitespace-nowrap text-ink-muted">
+                <time [attr.datetime]="log.timestamp" [title]="log.timestamp | date: 'medium'">
+                  {{ log.timestamp | relativeTime }}
+                </time>
+              </td>
+              <td>
+                <app-badge [tone]="log.result === 'success' ? 'brand' : 'danger'" [dot]="true">
+                  {{ log.result === 'success' ? 'Success' : 'Failure' }}
+                </app-badge>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="btn-icon"
+                  [attr.aria-label]="'View details for ' + log.action + ' by ' + log.actor"
+                  (click)="showDetail(log)"
+                >
+                  <app-icon name="eye" [size]="16" />
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Mobile cards -->
+      <ul class="divide-y divide-line md:hidden">
+        @for (log of rows(); track log.id) {
+          <li>
+            <button
+              type="button"
+              class="block w-full space-y-1.5 px-4 py-3.5 text-left active:bg-subtle"
+              (click)="showDetail(log)"
+            >
+              <span class="flex items-center justify-between gap-2 text-xs text-ink-muted">
+                <code class="font-mono text-ink">{{ log.action }}</code>
+                <span>{{ log.timestamp | relativeTime }}</span>
+              </span>
+              <span class="block font-medium">{{ log.actor }}</span>
+              <span class="flex items-center justify-between gap-2">
+                <span class="truncate font-mono text-xs text-ink-muted">{{ log.resource }}</span>
+                <app-badge [tone]="log.result === 'success' ? 'brand' : 'danger'" [dot]="true">
+                  {{ log.result === 'success' ? 'Success' : 'Failure' }}
+                </app-badge>
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <app-pagination [(page)]="list.page" [(pageSize)]="list.pageSize" [total]="total()" />
+  }
+</section>
+
+<!-- Mobile filters -->
+<app-drawer title="Filters" [(open)]="filtersOpen">
+  <div class="space-y-4 p-4">
+    <app-audit-filters [list]="list" [stacked]="true" />
+  </div>
+  <div drawer-footer class="flex gap-2 border-t border-line p-4">
+    <button type="button" class="btn-secondary flex-1" (click)="list.clearAll()">Clear</button>
+    <button type="button" class="btn-primary flex-1" (click)="filtersOpen.set(false)">
+      Show {{ total() }} results
+    </button>
+  </div>
+</app-drawer>
+
+<!-- Event detail -->
+<app-drawer title="Audit event" [(open)]="detailOpen">
+  @if (selected(); as log) {
+    <dl class="divide-y divide-line">
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">Result</dt>
+        <dd class="mt-1">
+          <app-badge [tone]="log.result === 'success' ? 'brand' : 'danger'" [dot]="true">
+            {{ log.result === 'success' ? 'Success' : 'Failure' }}
+          </app-badge>
+        </dd>
+      </div>
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">Actor</dt>
+        <dd class="mt-1">{{ log.actor }}</dd>
+      </div>
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">Action</dt>
+        <dd class="mt-1 font-mono text-xs">{{ log.action }}</dd>
+      </div>
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">Resource</dt>
+        <dd class="mt-1 font-mono text-xs break-all">{{ log.resource }}</dd>
+      </div>
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">Timestamp</dt>
+        <dd class="mt-1">
+          <time [attr.datetime]="log.timestamp">{{ log.timestamp | date: 'medium' }}</time>
+          <span class="text-ink-muted"> · {{ log.timestamp | relativeTime }}</span>
+        </dd>
+      </div>
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">IP address</dt>
+        <dd class="mt-1 font-mono text-xs">{{ log.ip }}</dd>
+      </div>
+      <div class="px-4 py-3">
+        <dt class="text-xs font-medium text-ink-muted">Metadata</dt>
+        <dd class="mt-2">
+          @if ((log.metadata | keyvalue).length) {
+            <dl class="space-y-2 rounded-control bg-subtle p-3">
+              @for (entry of log.metadata | keyvalue; track entry.key) {
+                <div>
+                  <dt class="text-xs text-ink-muted">{{ entry.key }}</dt>
+                  <dd class="font-mono text-xs break-all">{{ entry.value }}</dd>
+                </div>
+              }
+            </dl>
+          } @else {
+            <span class="text-ink-muted">No metadata recorded</span>
+          }
+        </dd>
+      </div>
+    </dl>
+  }
+  <div drawer-footer class="border-t border-line p-4">
+    <button type="button" class="btn-secondary w-full" (click)="detailOpen.set(false)">
+      Close
+    </button>
+  </div>
+</app-drawer>

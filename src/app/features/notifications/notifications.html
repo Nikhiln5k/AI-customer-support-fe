@@ -1,0 +1,117 @@
+<app-page-header title="Notifications" [description]="description()">
+  <app-connection-status />
+  <button
+    type="button"
+    class="btn-secondary"
+    [disabled]="!center.unreadCount()"
+    (click)="center.markAllRead()"
+  >
+    <app-icon name="check-double" [size]="16" />
+    Mark all as read
+  </button>
+</app-page-header>
+
+<section class="card overflow-hidden" aria-label="Notification list">
+  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line p-3 md:p-4">
+    <div
+      class="flex rounded-control border border-line-strong bg-surface p-0.5"
+      role="group"
+      aria-label="Show notifications"
+    >
+      @for (option of views; track option.value) {
+        <button
+          type="button"
+          class="flex min-h-9 items-center gap-1.5 rounded-[calc(var(--radius-control)-2px)] px-3 text-sm font-medium transition-colors"
+          [class]="view() === option.value ? 'bg-subtle text-ink' : 'text-ink-muted hover:text-ink'"
+          [attr.aria-pressed]="view() === option.value"
+          (click)="view.set(option.value)"
+        >
+          {{ option.label }}
+          @if (option.value === 'unread' && center.unreadCount()) {
+            <span class="rounded bg-brand px-1.5 text-xs text-white">{{
+              center.unreadCount()
+            }}</span>
+          }
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (center.loading() && !center.items().length) {
+    <app-skeleton-rows [rows]="6" />
+  } @else if (center.error() && !center.items().length) {
+    <app-error-state [error]="center.error()" (retry)="center.load()" />
+  } @else if (!visible().length) {
+    <app-empty-state
+      icon="bell"
+      [title]="view() === 'unread' ? 'No unread notifications' : 'No notifications yet'"
+      [message]="
+        view() === 'unread'
+          ? 'You’re all caught up. New activity will show up here.'
+          : 'Assignments, replies, mentions and SLA warnings will appear here.'
+      "
+    >
+      @if (view() === 'unread' && center.items().length) {
+        <button type="button" class="btn-secondary" (click)="view.set('all')">
+          Show all notifications
+        </button>
+      }
+    </app-empty-state>
+  } @else {
+    <ul class="divide-y divide-line">
+      @for (item of visible(); track item.id) {
+        @let type = types[item.type];
+        <li
+          class="relative flex gap-3 px-4 py-3.5 transition-colors hover:bg-canvas md:px-5"
+          [class.bg-brand-soft]="!item.read"
+        >
+          <span
+            class="flex size-9 shrink-0 items-center justify-center rounded-full"
+            [class]="type.color"
+          >
+            <app-icon [name]="type.icon" [size]="16" />
+          </span>
+
+          <div class="min-w-0 flex-1">
+            <p class="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
+              <span class="font-medium">{{ type.label }}</span>
+              <span aria-hidden="true">·</span>
+              <time [attr.datetime]="item.createdAt">{{ item.createdAt | relativeTime }}</time>
+            </p>
+            <p class="mt-0.5" [class]="item.read ? 'text-ink' : 'font-semibold text-ink'">
+              @if (!item.read) {
+                <span class="sr-only">Unread: </span>
+              }
+              @if (item.link) {
+                <a
+                  [routerLink]="item.link"
+                  class="hover:underline after:absolute after:inset-0"
+                  (click)="open(item)"
+                >
+                  {{ item.title }}
+                </a>
+              } @else {
+                {{ item.title }}
+              }
+            </p>
+            <p class="mt-0.5 text-ink-muted">{{ item.body }}</p>
+          </div>
+
+          <div class="flex shrink-0 items-start gap-1">
+            @if (!item.read) {
+              <span class="mt-2 size-2 rounded-full bg-brand" aria-hidden="true"></span>
+              <button
+                type="button"
+                class="btn-icon relative z-10 -my-1.5"
+                [attr.aria-label]="'Mark “' + item.title + '” as read'"
+                (click)="center.markRead(item.id)"
+              >
+                <app-icon name="check" [size]="16" />
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>

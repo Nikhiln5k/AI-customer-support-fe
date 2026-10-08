@@ -1,0 +1,230 @@
+@let profile = customer.value();
+
+<app-page-header
+  [title]="profile?.name ?? 'Customer'"
+  [description]="profile?.company ?? ''"
+  [breadcrumbs]="[{ label: 'Customers', link: '/customers' }, { label: profile?.name ?? '…' }]"
+>
+  @if (canEdit && profile) {
+    <a [routerLink]="['/customers', id(), 'edit']" class="btn-secondary">
+      <app-icon name="edit" [size]="16" /> Edit
+    </a>
+    <a routerLink="/tickets/new" [queryParams]="{ customerId: id() }" class="btn-primary">
+      <app-icon name="plus" [size]="16" /> New ticket
+    </a>
+  }
+</app-page-header>
+
+@if (customer.error()) {
+  <div class="card">
+    <app-error-state [error]="customer.error()" (retry)="customer.reload()" />
+  </div>
+} @else {
+  <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+    <!-- Contact details -->
+    <section class="card p-4 md:p-6" aria-labelledby="contact-heading">
+      @if (profile) {
+        <div class="mb-5 flex items-center gap-3">
+          <app-avatar [name]="profile.name" [size]="48" />
+          <div class="min-w-0">
+            <h2 id="contact-heading" class="truncate text-base">Contact details</h2>
+            <p class="text-xs text-ink-muted">Added {{ profile.createdAt | relativeTime }}</p>
+          </div>
+        </div>
+
+        <dl class="space-y-4">
+          <div class="flex gap-3">
+            <app-icon name="mail" [size]="16" class="mt-0.5 text-ink-muted" />
+            <div class="min-w-0">
+              <dt class="text-xs text-ink-muted">Email</dt>
+              <dd class="break-all">
+                <a [href]="'mailto:' + profile.email" class="link">{{ profile.email }}</a>
+              </dd>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <app-icon name="phone" [size]="16" class="mt-0.5 text-ink-muted" />
+            <div>
+              <dt class="text-xs text-ink-muted">Phone</dt>
+              <dd>
+                @if (profile.phone) {
+                  <a [href]="'tel:' + profile.phone" class="link">{{ profile.phone }}</a>
+                } @else {
+                  <span class="text-ink-muted">Not provided</span>
+                }
+              </dd>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <app-icon name="building" [size]="16" class="mt-0.5 text-ink-muted" />
+            <div>
+              <dt class="text-xs text-ink-muted">Company</dt>
+              <dd>{{ profile.company || '—' }}</dd>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <app-icon name="clock" [size]="16" class="mt-0.5 text-ink-muted" />
+            <div>
+              <dt class="text-xs text-ink-muted">Last interaction</dt>
+              <dd>{{ profile.lastInteractionAt | relativeTime }}</dd>
+            </div>
+          </div>
+          @if (profile.notes) {
+            <div class="flex gap-3">
+              <app-icon name="note" [size]="16" class="mt-0.5 text-ink-muted" />
+              <div>
+                <dt class="text-xs text-ink-muted">Notes</dt>
+                <dd class="whitespace-pre-line">{{ profile.notes }}</dd>
+              </div>
+            </div>
+          }
+        </dl>
+      } @else {
+        <h2 id="contact-heading" class="sr-only">Contact details</h2>
+        <div class="space-y-4" aria-busy="true" aria-label="Loading contact details">
+          <div class="flex items-center gap-3">
+            <div class="skeleton size-12 rounded-full"></div>
+            <div class="skeleton h-4 w-32"></div>
+          </div>
+          <div class="skeleton h-10"></div>
+          <div class="skeleton h-10"></div>
+          <div class="skeleton h-10"></div>
+        </div>
+      }
+    </section>
+
+    <div class="space-y-6">
+      <!-- Open tickets -->
+      <section class="card overflow-hidden" aria-labelledby="open-heading">
+        <div class="flex items-center justify-between gap-2 border-b border-line px-4 py-3 md:px-6">
+          <h2 id="open-heading" class="text-base">
+            Open tickets
+            @if (tickets.hasValue()) {
+              <span class="font-normal text-ink-muted">({{ openTickets().length }})</span>
+            }
+          </h2>
+        </div>
+
+        @if (tickets.isLoading() && !tickets.hasValue()) {
+          <app-skeleton-rows [rows]="3" />
+        } @else if (tickets.error()) {
+          <app-error-state [error]="tickets.error()" (retry)="tickets.reload()" />
+        } @else if (!openTickets().length) {
+          <app-empty-state
+            icon="ticket"
+            title="No open tickets"
+            message="Everything is resolved for this customer."
+          >
+            @if (canEdit) {
+              <a
+                routerLink="/tickets/new"
+                [queryParams]="{ customerId: id() }"
+                class="btn-secondary"
+              >
+                <app-icon name="plus" [size]="16" /> New ticket
+              </a>
+            }
+          </app-empty-state>
+        } @else {
+          <ul class="divide-y divide-line">
+            @for (ticket of openTickets(); track ticket.id) {
+              <li>
+                <a
+                  [routerLink]="['/tickets', ticket.id]"
+                  class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 hover:bg-subtle md:px-6"
+                >
+                  <span class="font-mono text-xs text-ink-muted">#{{ ticket.number }}</span>
+                  <span class="min-w-0 flex-1 basis-48 truncate font-medium">{{
+                    ticket.subject
+                  }}</span>
+                  <span class="flex items-center gap-1.5">
+                    <app-badge [tone]="priorityLabels[ticket.priority].tone">
+                      {{ priorityLabels[ticket.priority].label }}
+                    </app-badge>
+                    <app-badge [tone]="statusLabels[ticket.status].tone" [dot]="true">
+                      {{ statusLabels[ticket.status].label }}
+                    </app-badge>
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <!-- Recent conversations -->
+      <section class="card overflow-hidden" aria-labelledby="recent-heading">
+        <h2 id="recent-heading" class="border-b border-line px-4 py-3 text-base md:px-6">
+          Recent conversations
+        </h2>
+
+        @if (tickets.isLoading() && !tickets.hasValue()) {
+          <app-skeleton-rows [rows]="3" />
+        } @else if (tickets.error()) {
+          <app-error-state [error]="tickets.error()" (retry)="tickets.reload()" />
+        } @else if (!recentTickets().length) {
+          <app-empty-state icon="inbox" title="No conversations yet" />
+        } @else {
+          <ul class="divide-y divide-line">
+            @for (ticket of recentTickets(); track ticket.id) {
+              <li>
+                <a
+                  [routerLink]="['/tickets', ticket.id]"
+                  class="flex items-start gap-3 px-4 py-3 hover:bg-subtle md:px-6"
+                >
+                  <app-icon name="inbox" [size]="16" class="mt-0.5 text-ink-muted" />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium">{{ ticket.subject }}</span>
+                    <span class="block text-xs text-ink-muted">
+                      #{{ ticket.number }} · {{ statusLabels[ticket.status].label }} ·
+                      {{ ticket.assignee?.name ?? 'Unassigned' }}
+                    </span>
+                  </span>
+                  <span class="shrink-0 text-xs text-ink-muted">{{
+                    ticket.updatedAt | relativeTime
+                  }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <!-- Activity -->
+      <section class="card overflow-hidden" aria-labelledby="activity-heading">
+        <h2 id="activity-heading" class="border-b border-line px-4 py-3 text-base md:px-6">
+          Activity
+        </h2>
+
+        @if (activity.isLoading() && !activity.value().length) {
+          <app-skeleton-rows [rows]="4" />
+        } @else if (activity.error()) {
+          <app-error-state [error]="activity.error()" (retry)="activity.reload()" />
+        } @else if (!activity.value().length) {
+          <app-empty-state icon="activity" title="No activity yet" />
+        } @else {
+          <ol class="relative space-y-5 px-4 py-4 md:px-6">
+            @for (event of activity.value(); track event.id; let last = $last) {
+              <li class="relative flex gap-3">
+                @if (!last) {
+                  <span
+                    class="absolute top-4 left-[5px] h-[calc(100%+0.5rem)] w-px bg-line"
+                    aria-hidden="true"
+                  ></span>
+                }
+                <span
+                  class="relative mt-1.5 size-[11px] shrink-0 rounded-full border-2 border-brand bg-surface"
+                  aria-hidden="true"
+                ></span>
+                <div class="min-w-0">
+                  <p>{{ event.description }}</p>
+                  <p class="text-xs text-ink-muted">{{ event.createdAt | relativeTime }}</p>
+                </div>
+              </li>
+            }
+          </ol>
+        }
+      </section>
+    </div>
+  </div>
+}

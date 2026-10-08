@@ -1,3 +1,140 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-canvas: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-subtle: #f1efeb;
+  --color-line: #e5e2dc;
+  --color-line-strong: #d4d0c8;
+
+  --color-ink: #1d2125;
+  --color-ink-muted: #545b63;
+  --color-ink-faint: #6b7178;
+
+  --color-brand: #0f766e;
+  --color-brand-hover: #115e59;
+  --color-brand-soft: #e6f4f1;
+  --color-brand-ink: #0b5c55;
+
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf3e1;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-info: #1d4ed8;
+  --color-info-soft: #e8effd;
+
+  /* Categorical chart slots, validated for CVD separation on the light surface. */
+  --color-chart-1: #0d9488;
+  --color-chart-2: #6366f1;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans text-sm;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply text-ink font-semibold tracking-tight;
+  }
+}
+
+@utility btn {
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-control px-4 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-60 max-md:min-h-11;
+}
+
+@layer components {
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-brand-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-line-strong bg-surface text-ink hover:bg-subtle;
+  }
+  .btn-ghost {
+    @apply btn text-ink-muted hover:bg-subtle hover:text-ink;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white hover:bg-danger/90;
+  }
+  .btn-icon {
+    @apply inline-flex size-10 shrink-0 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-subtle hover:text-ink max-md:size-11;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+  .field-hint {
+    @apply mt-1.5 text-xs text-ink-faint;
+  }
+  .field-error {
+    @apply mt-1.5 text-xs font-medium text-danger;
+  }
+  .input {
+    @apply block min-h-10 w-full rounded-control border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-ink-faint transition-colors hover:border-ink-faint focus:border-brand focus:outline-2 focus:outline-offset-0 focus:outline-brand/25 disabled:bg-subtle max-md:min-h-11;
+  }
+  textarea.input {
+    @apply py-2.5;
+  }
+  .input[aria-invalid='true'] {
+    @apply border-danger;
+  }
+  .checkbox {
+    @apply size-4 rounded border-line-strong accent-brand;
+  }
+
+  .card {
+    @apply rounded-card border border-line bg-surface;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-md bg-subtle;
+  }
+
+  .data-table {
+    @apply w-full text-left text-sm;
+  }
+  .data-table th {
+    @apply border-b border-line px-4 py-2.5 text-xs font-medium text-ink-muted;
+  }
+  .data-table td {
+    @apply border-b border-line px-4 py-3 align-middle;
+  }
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-canvas;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .menu-item {
+    @apply flex min-h-10 w-full items-center gap-2 rounded-control px-3 text-left text-sm text-ink hover:bg-subtle disabled:opacity-50;
+  }
+
+  /* Sticky form footer; sits above the mobile bottom nav. */
+  .sticky-actions {
+    @apply sticky bottom-16 z-20 -mx-4 mt-6 flex justify-end gap-2 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-b-card;
+  }
+
+  .link {
+    @apply font-medium text-brand-ink underline-offset-2 hover:underline;
+  }
+}
